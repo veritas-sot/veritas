@@ -1,6 +1,7 @@
-from copy import deepcopy
+from openpyxl import load_workbook
 import logging
 import yaml
+import os
 
 
 def get_value_from_dict(dictionary, keys):
@@ -33,6 +34,14 @@ def get_loglevel(level):
     else:
         return logging.NOTSET
 
+def set_loglevel(args, config):
+    loglevel = get_loglevel(args.loglevel) if args.loglevel else \
+        get_loglevel(get_value_from_dict(config, ['general', 'logging', 'level']))
+    
+    log_format = get_value_from_dict(config, ['general', 'logging', 'format'])
+    log_format = '%(asctime)s %(levelname)s:%(message)s' if not log_format else log_format
+    logging.basicConfig(level=loglevel, format=log_format)
+
 def convert_arguments_to_properties(*unnamed, **named):
     """ converts unnamed (dict) and named arguments to a single property dict """
     properties = {}
@@ -61,3 +70,91 @@ def convert_arguments_to_properties(*unnamed, **named):
             properties[key] = value
     
     return properties
+
+def get_username_and_password(args, sot, config):
+    username = None
+    password = None
+
+    if args.profile is not None:
+        username = config.get('profiles',{}).get(args.profile,{}).get('username')
+        token = config.get('profiles',{}).get(args.profile,{}).get('password')
+        auth = sot.auth(encryption_key=os.getenv('ENCRYPTIONKEY'), 
+                        salt=os.getenv('SALT'), 
+                        iterations=int(os.getenv('ITERATIONS')))
+        password = auth.decrypt(token)
+
+    # overwrite username and password if configured by user
+    username = args.username if args.username else username
+    password = args.password if args.password else password
+
+    username = input("Username (%s): " % getpass.getuser()) if not username else username
+    password = getpass.getpass(prompt="Enter password for %s: " % username) if not password else password
+
+    return username, password
+
+def read_excel_file(filename, matches, device_facts, device_defaults):
+
+    # read excel file and add values to our response if a certain value matches
+    # eg. col 1 of our excel sheet is named 'hostname'. We are now checking 
+    # if the device_facts or the device_defaults have a key called hostname
+    # If the key was found and the value matches (device_facts hostname == excel value) 
+    # we add all the values of the sheet to our response
+    #
+    # the item_config contains a mapping sot_key => excel_key
+    # eg. device_facts = {'xxx': 'myhost'}
+    # than the mapping [{'xxx':'hostname'}] maps the key hostname of our
+    # excel sheet to the key xxx of our device_facts or device_defaults
+
+    response = {}
+    table = []
+
+    # Load the workbook
+    workbook = load_workbook(filename = filename)
+
+    # Select the active worksheet
+    worksheet = workbook.active
+    
+    # loop through table and build list of dict
+    rows = worksheet.max_row
+    columns = worksheet.max_column + 1 
+    for row in range(2, rows + 1):
+        line = {}
+        for col in range(1, columns):
+            key = worksheet.cell(row=1, column=col).value
+            value = worksheet.cell(row=row, column=col).value
+            line[key] = value
+        table.append(line)
+
+    for row in table:
+        # maybe there are multiple items
+        for matches_on in matches:
+            # sot key => name of key in our sot
+            # excel_key => name of column in our excel file
+            for sot_key, excel_key in matches_on.items():
+                df = device_facts.get(sot_key,'')
+                if len(df) > 0 and df.lower() == row.get(excel_key,'').lower():
+                    del row[excel_key]
+                    for k,v in row.items():
+                        # do not add None or empty values
+                        if v and len(v) > 0:
+                            set_value(response, k, v)
+                dd = device_defaults.get(sot_key,'')
+                if len(dd) > 0 and dd.lower() == row.get(excel_key,'').lower():
+                    del row[excel_key]
+                    for k,v in row.items():
+                        # do not add None or empty values
+                        if v and len(v) > 0:
+                            set_value(response, k, v)
+    
+    return response
+
+def set_value(mydict, paths, value):
+    # write value to nested dict
+    # we split the path by using '__'
+    parts = paths.split('__')
+    for part in parts[0:-1]:
+        # add {} if item does not exists
+        # this loop create an empty path
+        mydict = mydict.setdefault(part, {})
+    # at last write value to dict
+    mydict[parts[-1]] = value
