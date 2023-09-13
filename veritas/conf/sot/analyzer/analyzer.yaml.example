@@ -1,0 +1,4 @@
+---
+batfish:
+  snapshot: path_to_snapshot"
+  bf_address: "your_batfish_ip"

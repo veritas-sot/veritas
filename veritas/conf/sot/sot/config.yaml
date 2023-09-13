@@ -1,0 +1,133 @@
+---
+nautobot:
+  hldm: >
+        query ($name: [String], $id: [String], $tag: [String]) {
+          devices(name__ie: $name, id: $id, tag: $tag) {
+            hostname: name
+            serial
+            primary_ip4 {
+              address
+            }
+            status {
+              slug
+              name
+            }
+            config_context
+            custom_fields: _custom_field_data
+            tags {
+              slug
+              name
+            }
+            device_role {
+              slug
+              name
+            }
+            device_type {
+              slug
+              model
+            }
+            platform {
+              slug
+              name
+              manufacturer {
+                slug
+                name
+              }
+              napalm_driver
+            }
+            site {
+              slug
+              name
+            }
+            interfaces {
+              name
+              description
+              enabled
+              mac_address
+              type
+              mode
+              ip_addresses {
+                address
+                role
+                tags {
+                  slug
+                  name
+                }
+              }
+              connected_circuit_termination {
+                circuit {
+                  cid
+                  commit_rate
+                  provider {
+                    name
+                  }
+                }
+              }
+              tagged_vlans {
+                name
+                vid
+              }
+              untagged_vlan {
+                name
+                vid
+              }
+              cable {
+                termination_a_type
+                status {
+                  name
+                }
+                color
+              }
+              tags {
+                slug
+                name
+              }
+              lag {
+                name
+                enabled
+              }
+              member_interfaces {
+                name
+              }
+            }
+          }
+        }
+
+  changes: >
+        query ($gt: [String], $lt: [String], $action: String) {
+            object_changes (time__gt: $gt, time__lt: $lt, action: $action) {
+              time
+              user_name
+              action
+              changed_object_id
+              change_context_detail
+            }
+        }
+
+analyzer:
+  config: ../conf/sot/analyzer/analyzer.yaml
+
+configparser:
+  config: ../conf/sot/configparser/configparser.yaml
+  
+journal:
+  config: ../conf/journal/config.yaml
+
+devicemanagement:
+  config: ../conf/devicemanagement/
+
+templates:
+    directory: "../../../veritasData/templates/"
+    trim_blocks: True
+
+inventory:
+    backup_configs: "../../../veritasData/config_backups"
+
+webhooks:
+    dcim.device:
+        create:
+            routing_key: device.create
+        update:
+            routing_key: device.update
+        delete:
+            routing_key: device.delete

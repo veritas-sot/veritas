@@ -1,0 +1,15 @@
+---
+active: True
+name: IOS based facts
+vendor: cisco
+facts:
+  - command:
+      cmd: show version
+      template:
+        ios: cisco_ios_show_version.textfsm
+        nxos: cisco_nxos_show_version.textfsm
+  - command:
+      cmd: show hosts
+      template:
+        ios: cisco_ios_show_hosts_summary.textfsm
+        nxos: cisco_ios_show_hosts_summary.textfsm

@@ -1,0 +1,3 @@
+---
+templates:
+  ios: "../conf/sot/configparser/templates/ios_config.tpl"
