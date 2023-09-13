@@ -3,6 +3,7 @@ import json
 from pynautobot import api
 from pynautobot.models.dcim import Devices
 from pynautobot.models.dcim import Interfaces
+from ..tools import tools
 
 
 class Interface:
@@ -47,33 +48,6 @@ class Interface:
 
         return self._interface_obj
 
-    def __convert_arguments_to_properties(self, *unnamed, **named):
-        """ converts unnamed (dict) and named arguments to a single property dict """
-        properties = {}
-        if len(unnamed) > 0:
-            for param in unnamed:
-                if isinstance(param, dict):
-                    for key,value in param.items():
-                        properties[key] = value
-                elif isinstance(param, str):
-                    # it is just a text like log('something to log')
-                    return param
-                elif isinstance(param, tuple):
-                    for tup in param:
-                        if isinstance(tup, dict):
-                            for key,value in tup.items():
-                                properties[key] = value
-                        if isinstance(tup, str):
-                            return tup
-                elif isinstance(param, list):
-                    return param
-                else:
-                    logging.error(f'cannot use paramater {param} / {type(param)} as value')
-        for key,value in named.items():
-                properties[key] = value
-        
-        return properties
-
     # -----===== user commands =====----- 
 
     def set_interface_defaults(self, defaults):
@@ -82,7 +56,7 @@ class Interface:
         return self
 
     def get_properties(self, *unnamed, **named):
-        properties = self.__convert_arguments_to_properties(*unnamed, **named)
+        properties = tools.convert_arguments_to_properties(*unnamed, **named)
 
         if 'name' not in properties:
             properties['name'] = self._interface_name
@@ -99,7 +73,7 @@ class Interface:
                         return None
 
         # convert property values to id (vlan, tags, etc.)
-        success, error = self._sot.central.get_ids(properties)
+        success, error = self._convert_to_ids(properties)
         if not success:
             logging.error(f'could not convert properties to IDs; {error}')
             return None
@@ -165,7 +139,7 @@ class Interface:
         # check if new tag is known; add id to final list
         final_list = []
         for new_tag in list_of_tags:
-            tag = self._sot.central.get_entity(self._nautobot.extras.tags, "Tag", {'name': new_tag})
+            tag = self._nautobot.extras.tags.get(name=new_tag)
             if tag is None:
                 logging.error(f'unknown tag {new_tag}')
             else:
@@ -176,24 +150,17 @@ class Interface:
             # in this case ALL tags are removed
             properties = {'tags': list(final_list)}
             logging.debug(f'final list of tags {properties}')
-            # getter to get the interface; we use the device id!
-            getter = {'device_id': self._device.id, 'id': interface.id}
-            logging.debug(f'getter: {getter}')
-            return self._sot.central.update_entity(self._nautobot.dcim.interfaces,
-                                                   properties,
-                                                   getter)
+            entity = self._nautobot.dcim.interfaces.get(device_id=self._device.id, id=interface.id)
+            entity.update(properties)
         else:
             logging.debug(f'empty tag list')
             return None
     
     def set_customfield(self, *unnamed, **named):
-        properties = self.__convert_arguments_to_properties(*unnamed, **named)
+        properties = tools.convert_arguments_to_properties(*unnamed, **named)
         self.open_nautobot()
-        return self._sot.central.update_entity(func=self._nautobot.dcim.interfaces,
-                                               properties={'custom_fields': properties},
-                                               getter={'device': self._device.name,
-                                                       'name': self._interface_name},
-                                               convert_id=False)
+        entity = self._nautobot.dcim.interfaces.get(device=self._device.name, name=self._interface_name)
+        entity.update(custom_fields=properties)
 
     # -----===== attributes =====-----
 
@@ -212,15 +179,43 @@ class Interface:
         self.open_nautobot()
 
         properties = self.get_properties(*unnamed, **named)
-        return self._sot.central.add_entity(func=self._nautobot.dcim.interfaces,
-                                            properties=properties)
+        return self._nautobot.dcim.interfaces.create(properties)
 
     def update(self, *unnamed, **named):
         self.open_nautobot()
 
-        properties = self.__convert_arguments_to_properties(*unnamed, **named)
-        return self._sot.central.update_entity(func=self._nautobot.dcim.interfaces,
-                                               properties=properties,
-                                               getter={'device': self._device.name,
-                                                       'name': self._interface_name},
-                                               convert_id=False)
+        properties = tools.convert_arguments_to_properties(*unnamed, **named)
+        entity = self._nautobot.dcim.interfaces.get(device=self._device.name, name=self._interface_name)
+        return entity.update(properties)
+
+    def _convert_to_ids(self, newconfig, convert_device_to_uuid=True, convert_interface_to_uuid=False):
+        self.open_nautobot()
+        success = True
+        error = ""
+
+        if 'primary_ip4' in newconfig:
+            nb_addr = self._nautobot.ipam.ip_addresses.get(address=newconfig['primary_ip4'])
+            if nb_addr is None:
+                success = False
+                error = 'unknown IP address "%s"' % newconfig['primary_ip4']
+            else:
+                newconfig['primary_ip4'] = nb_addr.id
+
+        if 'location' in newconfig:
+            nb_location = self._nautobot.dcim.locations.get(slug=newconfig['location'])
+            if nb_location is None:
+                success = False
+                error = 'unknown location "%s"' % newconfig['location']
+            else:
+                newconfig['location'] = nb_location.id
+
+        if 'serial_number' in newconfig:
+            # some devices have more than one serial number
+            # the format is {'12345','12345'}
+            newconfig['serial_number'] = newconfig['serial_number'] \
+                .replace("'", "") \
+                .replace("\"", "") \
+                .replace("{", "") \
+                .replace("}", "")
+
+        return success, error

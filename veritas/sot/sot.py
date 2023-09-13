@@ -8,7 +8,6 @@ from . import ipam
 from . import getter
 from . import selection
 from . import device
-from . import central
 from . import importer
 from . import auth
 from . import analyzer
@@ -32,7 +31,6 @@ class Sot:
         self.__selection = None
         self.__importer = None
         self.__auth = None
-        self.__central = None
         self.__analyzer = None
         self.__configparser = None
         self.__updater = None
@@ -57,10 +55,6 @@ class Sot:
             if self.__getter is None:
                 self.__getter = getter.Getter(self)
             return self.__getter
-        if item == "central":
-            if self.__central is None:
-                self.__central = central.Central(self)
-            return self.__central
         if item == "importer":
             if self.__importer is None:
                 self.__importer = importer.Importer(self)

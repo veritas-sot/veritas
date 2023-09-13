@@ -3,6 +3,7 @@ import json
 import os
 import yaml
 from pynautobot import api
+from ..tools import tools
 
 
 class Importer(object):
@@ -41,32 +42,18 @@ class Importer(object):
         if self._nautobot is None:
             self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token())
 
-    def __convert_arguments_to_properties(self, *unnamed, **named):
-        """ converts unnamed (dict) and named arguments to a single property dict """
-        properties = {}
-        if len(unnamed) > 0:
-            for param in unnamed:
-                if isinstance(param, dict):
-                    for key,value in param.items():
-                        properties[key] = value
-                elif isinstance(param, str):
-                    # it is just a text like log('something to log')
-                    return param
-                elif isinstance(param, tuple):
-                    for tup in param:
-                        if isinstance(tup, dict):
-                            for key,value in tup.items():
-                                properties[key] = value
-                        if isinstance(tup, str):
-                            return tup
-                elif isinstance(param, list):
-                    return param
-                else:
-                    logging.error(f'cannot use paramater {param} / {type(param)} as value')
-        for key,value in named.items():
-                properties[key] = value
-        
-        return properties
+    def add_entity(self, func, properties):
+        try:
+            item = func.create(properties)
+            if item:
+                logging.debug("entity added to sot")
+            else:
+                logging.debug("entity not added to sot")
+            return item
+        except Exception as exc:
+            logging.error("entity not added to sot; got exception %s" % exc)
+            logging.error(f'properties: {properties}')
+            return None
 
     def open_file(self, filename):
         logging.debug(f'opening file {filename}')
@@ -84,14 +71,14 @@ class Importer(object):
         success = False
 
         if bulk:
-            success = self._sot.central.add_entity(creator, data)
+            success = self.add_entity(creator, data)
             if success:
                 logging.info(f'{title} successfully added to sot')
             else:
                 logging.error(f'could not add {title} to sot')
         else:
             for item in data:
-                success = self._sot.central.add_entity(creator, item)
+                success = self.add_entity(creator, item)
                 if success:
                     logging.info(f'{title} successfully added to sot')
                 else:
@@ -103,7 +90,7 @@ class Importer(object):
     def add(self, *unnamed, **named):
         logging.debug("-- entering importer.py/add")
         self.open_nautobot()
-        properties = self.__convert_arguments_to_properties(*unnamed, **named)
+        properties = tools.convert_arguments_to_properties(*unnamed, **named)
         endpoint = properties.get('endpoint')
         if not endpoint:
             logging.error(f'please specify endpoint')

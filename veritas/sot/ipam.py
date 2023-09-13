@@ -5,7 +5,6 @@ from pynautobot.models.dcim import Devices
 from pynautobot.models.ipam import IpAddresses
 from pynautobot.models.ipam import Prefixes
 from pynautobot.core.response import Record
-from . import central
 
 
 class Ipam(object):
@@ -319,7 +318,8 @@ class Ipam(object):
             properties.update(self._ipv4_defaults)
 
         logging.debug(f'add IP address: {properties}')
-        return self._sot.central.add_entity(self._nautobot.ipam.ip_addresses, properties, True)
+        success, error = self._convert_to_ids(device_properties)
+        return self._nautobot.ipam.ip_addresses.create(properties)
 
     def delete_ipv4(self):
         self.open_nautobot()
@@ -334,7 +334,9 @@ class Ipam(object):
             getter = {'address': ipv4}
             message = {'address': ipv4}
 
-        return self._sot.central.delete_entity(self._nautobot.ipam.ip_addresses, "IP", message, getter)
+        # todo testen
+        entity = self._nautobot.ipam.ip_addresses.get(**getter)
+        entity.delete()
 
     def update_ipv4(self, properties):
         self.open_nautobot()
@@ -347,9 +349,8 @@ class Ipam(object):
             logging.error("no IP address specified; please use .ipv4() to specify address")
             return None
 
-        return self._sot.central.update_entity(self._nautobot.ipam.ip_addresses,
-                                     properties,
-                                     {'address': properties.get('address')})
+        entity = self._nautobot.ipam.ip_addresses.get(address=properties.get('address'))
+        return entity.update(properties)
 
     # -----===== PREFIX management =====-----
 
@@ -376,16 +377,15 @@ class Ipam(object):
 
         logging.debug(f'add prefix: {properties}')
 
-        return self._sot.central.add_entity(self._nautobot.ipam.prefixes, properties, True)
+        success, error = self._convert_to_ids(device_properties)
+        return self._nautobot.ipam.prefixes.create(properties)
 
     def delete_prefix(self):
         self.open_nautobot()
         properties = {'prefix': self._last_requested_prefix}
 
-        return self._sot.central.delete_entity(self._nautobot.ipam.prefixes,
-                                     'prefix',
-                                     {'prefix': properties['prefix']},
-                                     {'prefix': properties['prefix']})
+        entity = self._nautobot.ipam.prefixes.get(prefix=properties['prefix'])
+        return entity.delete()
 
     def update_prefix(self, properties):
         self.open_nautobot()
@@ -399,9 +399,8 @@ class Ipam(object):
             return None
 
         # update prefix in nautobot
-        return self._sot.central.update_entity(self._nautobot.ipam.prefixes,
-                                     properties,
-                                     {'prefix': properties.get('prefix')})
+        entity = self._nautobot.ipam.prefixes.get(prefix=properties.get('prefix'))
+        return entity.update(properties)
 
     # -----===== VLAN management =====-----
 
@@ -463,7 +462,9 @@ class Ipam(object):
             
         if not skip:
             message = {'vid': properties.get('vid'), 'site': properties.get('site')}
-            return self._sot.central.add_entity(self._nautobot.ipam.vlans, properties, True)
+
+            success, error = self._convert_to_ids(device_properties)
+            return self._nautobot.ipam.vlans.create(properties)
 
     def delete_vlan(self):
         self.open_nautobot()
@@ -489,10 +490,8 @@ class Ipam(object):
 
             if site_name == site:
                 message = {'vid': vid, 'site':site_name}
-                return self._sot.central.delete_entity(self._nautobot.ipam.vlans,
-                                             'VLAN',
-                                             vlan,
-                                             {'id': vlan.id})
+                entity = self._nautobot.ipam.vlans.get(id=vlan.id)
+                return entity.delete()
 
         logging.debug("no VLAN found")
         return None
@@ -521,9 +520,8 @@ class Ipam(object):
 
             if vlan.vid == properties.get('vid') and site_name == properties.get('site'):
                 message = {'vid': properties.get('vid'), 'site': properties.get('site')}
-                return self._sot.central.update_entity(self._nautobot.ipam.vlans,
-                                             properties,
-                                             {'id': vlan.id})
+                entity = self._nautobot.ipam.vlans.get(id=vlan.id)
+                entity.update(properties)
 
         logging.debug("no VLAN found")
         return None
@@ -603,3 +601,35 @@ class Ipam(object):
             return None
 
         return True
+
+    def _convert_to_ids(self, newconfig, convert_device_to_uuid=True, convert_interface_to_uuid=False):
+        self.open_nautobot()
+        success = True
+        error = ""
+
+        if 'primary_ip4' in newconfig:
+            nb_addr = self._nautobot.ipam.ip_addresses.get(address=newconfig['primary_ip4'])
+            if nb_addr is None:
+                success = False
+                error = 'unknown IP address "%s"' % newconfig['primary_ip4']
+            else:
+                newconfig['primary_ip4'] = nb_addr.id
+
+        if 'location' in newconfig:
+            nb_location = self._nautobot.dcim.locations.get(slug=newconfig['location'])
+            if nb_location is None:
+                success = False
+                error = 'unknown location "%s"' % newconfig['location']
+            else:
+                newconfig['location'] = nb_location.id
+
+        if 'serial_number' in newconfig:
+            # some devices have more than one serial number
+            # the format is {'12345','12345'}
+            newconfig['serial_number'] = newconfig['serial_number'] \
+                .replace("'", "") \
+                .replace("\"", "") \
+                .replace("{", "") \
+                .replace("}", "")
+
+        return success, error

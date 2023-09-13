@@ -10,7 +10,6 @@ from pynautobot.models.dcim import Interfaces as PyInterfaces
 from pynautobot.models.ipam import IpAddresses
 from .. import devicemanagement as dm
 from ..tools import tools
-from . import central
 
 
 class Device:
@@ -82,9 +81,7 @@ class Device:
             logging.debug("getting device from sot")
             self.open_nautobot()
             if self._device_name is not None:
-                self._device_obj = self._sot.central.get_entity(self._nautobot.dcim.devices,
-                                                                "Device",
-                                                                {'name': self._device_name})
+                self._device_obj = self._nautobot.dcim.devices.get(name=self._device_name)
             elif self._device_ip is not None:
                 logging.debug(f'sending query to get device using IP {self._device_ip}')
                 self._device_obj = self._get_device_by_ip(ip=self._device_ip)
@@ -114,9 +111,8 @@ class Device:
                              .using('nb.devices') \
                              .normalize(True) \
                              .where(f'primary_ip4={ip}')
-        getter = {'id': response[0]['id']}
         self.open_nautobot()
-        return self._sot.central.get_entity(self._nautobot.dcim.devices, "Device", getter)
+        return self._nautobot.dcim.devices.get(id=response[0]['id'])
 
     # -----===== user commands =====-----
 
@@ -194,14 +190,9 @@ class Device:
             f'connect device {self._device_name}/{self._last_requested_interface} to {name_of_side_b}/{name_of_interface_b}')
 
         interface_a = self._get_interface(self._last_requested_interface)
-        side_b = self._sot.central.get_entity(self._nautobot.dcim.devices,
-                                              "Device",
-                                              {'name': name_of_side_b})
-        interface_b = self._sot.central.get_entity(self._nautobot.dcim.interfaces,
-                                              "Interface",
-                                              {'device_id': side_b.id,
-                                               'name': name_of_interface_b})
-        
+        side_b = self._nautobot.dcim.devices.get(name=name_of_side_b)
+        interface_b = self._nautobot.dcim.interfaces(device_id=side_b.id,
+                                                     name=name_of_interface_b)
         if side_b is not None and interface_b is not None:
             self._last_requested_interface = None
             cable = {
@@ -212,7 +203,7 @@ class Device:
                 'type': 'cat5e',
                 'status': 'connected'
             }
-            success = self._sot.central.add_entity(self._nautobot.dcim.cables, cable)
+            success = self._nautobot.dcim.cables.create(cable)
 
             if success:
                 logging.debug(f'connection created successfully')
@@ -292,7 +283,7 @@ class Device:
                     return False
 
         device_properties['name'] = self._device_name
-        nb_device = self._sot.central.add_entity(self._nautobot.dcim.devices, device_properties)
+        nb_device = self._nautobot.dcim.devices.create(device_properties)
         if nb_device is None:
             logging.error(f'could not add device {self._device_name} to SOT')
             logging.debug(f'-- leaving device.py/add_device')
@@ -362,7 +353,7 @@ class Device:
 
         if convert_to_id:
             logging.debug("converting properties to IDs")
-            success, error = self._sot.central.get_ids(device_properties)
+            success, error = self._convert_to_ids(device_properties)
             if not success:
                 logging.error(f'could not convert properties to IDs; {error}')
                 return None
@@ -378,7 +369,12 @@ class Device:
         self.open_nautobot()
         logging.debug(f'deleting device {self._device_name} from sot')
 
-        return self._sot.central.delete_entity(self._nautobot.dcim.devices, "Device", {'name': self._device_name}, {'name': self._device_name})
+        entity = self._nautobot.dcim.devices.get(name=self._device_name)
+        if entity:
+            return entity.delete()
+        else:
+            logging.error(f'unknown device {self._device_name}')
+            return False
 
     def set_customfield(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
@@ -396,9 +392,8 @@ class Device:
             return self._interfaces[self._last_requested_interface].set_customfield(properties)
         else:
             logging.debug(f'setting custom field {properties} on device {self._device_name}')
-            return self._sot.central.update_entity(self._nautobot.dcim.devices,
-                                                   {'custom_fields': properties},
-                                                   {'name': self._device_name})
+            entity = self._nautobot.dcim.devices.get(name=self._device_name)
+            entity.update(custom_fields=properties)
 
     def set_device_tags(self, new_tags):
         self.add_device_tags(new_tags, True)
@@ -422,7 +417,7 @@ class Device:
 
         # check if new tag is known; add id to final list
         for new_tag in new_tags:
-            tag = self._sot.central.get_entity(self._nautobot.extras.tags, "Tag", {'name': new_tag})
+            tag = self._nautobot.extras.tags.get(name=new_tag)
             if tag is None:
                 logging.error(f'unknown tag {new_tag}')
             else:
@@ -431,9 +426,8 @@ class Device:
         if len(final_list) > 0:
             properties = {'tags': list(final_list)}
             logging.debug(f'final list of tags {properties}')
-            return self._sot.central.update_entity(self._nautobot.dcim.devices,
-                                                   properties,
-                                                   {'name': self._device_name})
+            entity = self._nautobot.dcim.devices.get(name=self._device_name)
+            entity.update(properties)
 
     def delete_device_tags(self):
         self.open_nautobot()
@@ -456,6 +450,37 @@ class Device:
 
         properties = {'tags': list(new_device_tags)}
         # todo hier noch einmal schauen und testen
-        return self._sot.central.update_entity(self._nautobot.extras.tags,
-                                               properties,
-                                               {'name': self._device_name})
+        entity = self._nautobot.extras.tags.get(name=self._device_name)
+        entity.update(properties)
+
+    def _convert_to_ids(self, newconfig, convert_device_to_uuid=True, convert_interface_to_uuid=False):
+        self.open_nautobot()
+        success = True
+        error = ""
+
+        if 'primary_ip4' in newconfig:
+            nb_addr = self._nautobot.ipam.ip_addresses.get(address=newconfig['primary_ip4'])
+            if nb_addr is None:
+                success = False
+                error = 'unknown IP address "%s"' % newconfig['primary_ip4']
+            else:
+                newconfig['primary_ip4'] = nb_addr.id
+
+        if 'location' in newconfig:
+            nb_location = self._nautobot.dcim.locations.get(slug=newconfig['location'])
+            if nb_location is None:
+                success = False
+                error = 'unknown location "%s"' % newconfig['location']
+            else:
+                newconfig['location'] = nb_location.id
+
+        if 'serial_number' in newconfig:
+            # some devices have more than one serial number
+            # the format is {'12345','12345'}
+            newconfig['serial_number'] = newconfig['serial_number'] \
+                .replace("'", "") \
+                .replace("\"", "") \
+                .replace("{", "") \
+                .replace("}", "")
+
+        return success, error
