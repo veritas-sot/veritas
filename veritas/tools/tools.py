@@ -92,7 +92,7 @@ def get_username_and_password(args, sot, config):
 
     return username, password
 
-def read_excel_file(filename, matches, device_facts, device_defaults):
+def read_excel_file(filename, mappings, device_facts, device_defaults):
 
     # read excel file and add values to our response if a certain value matches
     # eg. col 1 of our excel sheet is named 'hostname'. We are now checking 
@@ -127,13 +127,16 @@ def read_excel_file(filename, matches, device_facts, device_defaults):
 
     for row in table:
         # maybe there are multiple items
-        for matches_on in matches:
+        for maps_on in mappings:
             # sot key => name of key in our sot
             # excel_key => name of column in our excel file
-            for sot_key, excel_key in matches_on.items():
+            for sot_key, excel_key in maps_on.items():
                 df = device_facts.get(sot_key,'')
                 if len(df) > 0 and df.lower() == row.get(excel_key,'').lower():
+                    # remove value (and only the value that matches)
+                    # from our row / otherwise the key will be added to our response dict 
                     del row[excel_key]
+                    # add all values to our response dict
                     for k,v in row.items():
                         # do not add None or empty values
                         if v and len(v) > 0:
@@ -145,7 +148,7 @@ def read_excel_file(filename, matches, device_facts, device_defaults):
                         # do not add None or empty values
                         if v and len(v) > 0:
                             set_value(response, k, v)
-    
+
     return response
 
 def set_value(mydict, paths, value):
