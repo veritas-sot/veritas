@@ -318,7 +318,7 @@ class Ipam(object):
             properties.update(self._ipv4_defaults)
 
         logging.debug(f'add IP address: {properties}')
-        success, error = self._convert_to_ids(device_properties)
+        success, error = self._convert_to_ids(properties)
         return self._nautobot.ipam.ip_addresses.create(properties)
 
     def delete_ipv4(self):
