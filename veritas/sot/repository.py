@@ -9,7 +9,7 @@ class Repository:
 
     def __init__(self, path: str, repo: str, account=None, ssh_key=None):
             self.path = Path(path).expanduser().resolve()
-            self._repo = repo
+            self._repo_name = repo
             if ssh_key:
                 self._ssh_cmd = f'ssh -i {ssh_key}'
             else:
@@ -18,8 +18,10 @@ class Repository:
             # Initialize repository
             logging.debug(f'opening REPO {path} / {self.path} / ssh {self._ssh_cmd}')
             self._open_repository()
-            if account is not None and repo is not None:
-                self._remote = f'https://github.com/{account}/{repo}.git'
+
+    def __getattr__(self, item):
+        if item == 'remotes':
+            return self._repo.remotes
 
     def _open_repository(self):
         self._repo = Repo(str(self.path))
@@ -31,15 +33,28 @@ class Repository:
         return self._repo.clone_from(self._remote, full_local_path)
 
     def get_config(self):
+        config = {}
         with self._repo.config_reader() as git_config:
-            print(git_config.get_value('user', 'email'))
-            print(git_config.get_value('user', 'name'))
+            config['user.email'] = git_config.get_value('user', 'email')
+            config['user.name'] = git_config.get_value('user', 'name')
+        return config
+
+    def set_config(self, key, sub_ey, value):
+        # user.name = value
+        with self._repo.config_writer() as config:
+            config.set_value(key, sub_key, value)
+
+    def create_remote(self, remote_name, url):
+        self._repo.create_remote(remote_name, url)
 
     def has_changes(self):
         if self._repo.is_dirty(untracked_files=True):
             logging.debug('Changes detected')
             return True
         return False
+
+    def get_untracked_files(self):
+        return self._repo.untracked_files
 
     def get_diff(self):
         return self._repo.git.diff(self._repo.head.commit.tree)
@@ -48,7 +63,7 @@ class Repository:
         self._repo.index.add(files)
 
     def add_all(self):
-        self._repo.git.add('--all')
+        self._repo.git.add(all=True)
 
     def commit(self, comment=''):
         self._repo.index.commit(comment)
@@ -64,9 +79,6 @@ class Repository:
             with self._repo.git.custom_environment(GIT_SSH_COMMAND=self._ssh_cmd):
                 return self._repo.remotes.origin.pull(env={"GIT_SSH_COMMAND": self._ssh_cmd })
         return self._repo.remotes.origin.pull()
-
-    def remotes(self):
-        return self._repo.remotes
 
     def commits(self, number_of_commits=5):
         return list(self._repo.iter_commits('main'))[:number_of_commits]
