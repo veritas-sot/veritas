@@ -1,9 +1,15 @@
 import logging
 import os
+import datetime
 from pathlib import Path
 from git import Repo, GitCommandError
 from git.objects import Commit as GitCommit
 
+#
+# todo
+#
+# git log -p -- path/to/file
+# git diff HEAD^^
 
 class Repository:
 
@@ -26,18 +32,48 @@ class Repository:
     def _open_repository(self):
         self._repo = Repo(str(self.path))
 
-    def clone(self, full_local_path):
-        if self._ssh_cmd:
-            with self._repo.git.custom_environment(GIT_SSH_COMMAND=self._ssh_cmd):
-                return self._repo.clone_from(self._remote, full_local_path)
-        return self._repo.clone_from(self._remote, full_local_path)
+    def get_repo(self):
+        return self._repo
+
+    def get_index(self):
+        return self._repo.index
 
     def get_config(self):
         config = {}
         with self._repo.config_reader() as git_config:
             config['user.email'] = git_config.get_value('user', 'email')
             config['user.name'] = git_config.get_value('user', 'name')
+
         return config
+
+    def get_info(self):
+        info = {}
+        master = self._repo.head.reference
+        lc = datetime.datetime.fromtimestamp(master.commit.committed_date)
+        last_commit = lc.strftime("%Y_%m_%d_%H%M%S")
+        info['current_branch'] = master.name
+        info['last_commit'] = last_commit
+        info['last_commit_id'] = master.commit.hexsha
+        info['last_commit_by'] = master.commit.author.name
+        info['last_commit_message'] = master.commit.message
+
+        return info
+
+    def get_last_commits(self, max_count, filename):
+        commits_for_file_generator = self._repo.iter_commits(all=True, 
+                                                             max_count=max_count, 
+                                                             paths=filename)
+        return [c for c in commits_for_file_generator]
+
+    def get_last_commits_of(self, path):
+        return [commit for commit in self._repo.iter_commits(paths=path)]
+
+    def get_revision(self, path):
+        # for commit, filecontents in revlist:
+        #   ...
+        return (
+            (commit, (commit.tree / path).data_stream.read()) for commit in self._repo.iter_commits(paths=path)
+        )
 
     def set_config(self, key, sub_ey, value):
         # user.name = value
@@ -56,8 +92,11 @@ class Repository:
     def get_untracked_files(self):
         return self._repo.untracked_files
 
+    def get_diff_summary(self, name_only=True):
+        return self._repo.git.diff('HEAD~1..HEAD', name_only=name_only)
+
     def get_diff(self):
-        return self._repo.git.diff(self._repo.head.commit.tree)
+        return self._repo.head.commit
 
     def add(self, files):
         self._repo.index.add(files)
@@ -85,6 +124,9 @@ class Repository:
 
     def branch(self):
         return self._repo.active_branch.name
+
+    def get_branch(self):
+        return self._repo.head.reference
 
     def branches(self):
         return self._repo.branches
