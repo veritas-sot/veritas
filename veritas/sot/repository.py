@@ -13,14 +13,9 @@ from git.objects import Commit as GitCommit
 
 class Repository:
 
-    def __init__(self, path: str, repo: str, account=None, ssh_key=None):
+    def __init__(self, path: str, repo: str):
             self.path = Path(path).expanduser().resolve()
             self._repo_name = repo
-            if ssh_key:
-                self._ssh_cmd = f'ssh -i {ssh_key}'
-            else:
-                self._ssh_cmd = None
-
             # Initialize repository
             logging.debug(f'opening REPO {path} / {self.path} / ssh {self._ssh_cmd}')
             self._open_repository()

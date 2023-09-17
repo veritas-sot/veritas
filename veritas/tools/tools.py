@@ -2,6 +2,7 @@ from openpyxl import load_workbook
 import logging
 import yaml
 import os
+import getpass
 
 
 def get_value_from_dict(dictionary, keys):
@@ -78,10 +79,11 @@ def get_username_and_password(args, sot, config):
     if args.profile is not None:
         username = config.get('profiles',{}).get(args.profile,{}).get('username')
         token = config.get('profiles',{}).get(args.profile,{}).get('password')
-        auth = sot.auth(encryption_key=os.getenv('ENCRYPTIONKEY'), 
-                        salt=os.getenv('SALT'), 
-                        iterations=int(os.getenv('ITERATIONS')))
-        password = auth.decrypt(token)
+        if username and token:
+            auth = sot.auth(encryption_key=os.getenv('ENCRYPTIONKEY'), 
+                            salt=os.getenv('SALT'), 
+                            iterations=int(os.getenv('ITERATIONS')))
+            password = auth.decrypt(token)
 
     # overwrite username and password if configured by user
     username = args.username if args.username else username

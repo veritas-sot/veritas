@@ -30,7 +30,6 @@ class Device:
 
         # init variables
         self._last_attribute = None
-        self._todos = {}
         self._use_defaults = False
         self._return_device = True
 
