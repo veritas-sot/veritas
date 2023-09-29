@@ -37,6 +37,7 @@ class Interface:
     def open_nautobot(self):
         if self._nautobot is None:
             self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token())
+            self._nautobot.http_session.verify = self._sot.get_ssl_verify()
 
     def _get_interface_from_nautobot(self, refresh=False):
         if self._interface_obj is None or refresh:

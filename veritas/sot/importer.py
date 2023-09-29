@@ -41,6 +41,7 @@ class Importer(object):
     def open_nautobot(self):
         if self._nautobot is None:
             self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token())
+            self._nautobot.http_session.verify = self._sot.get_ssl_verify()
 
     def add_entity(self, func, properties):
         try:

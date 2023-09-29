@@ -71,6 +71,7 @@ class Device:
     def open_nautobot(self):
         if self._nautobot is None:
             self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token())
+            self._nautobot.http_session.verify = self._sot.get_ssl_verify()
 
     def _get_device_from_nautobot(self, refresh=False):
         # sometimes we need to refresh the object eg. when adding tags
@@ -392,7 +393,12 @@ class Device:
         else:
             logging.debug(f'setting custom field {properties} on device {self._device_name}')
             entity = self._nautobot.dcim.devices.get(name=self._device_name)
-            entity.update(custom_fields=properties)
+            update = entity.update(properties)
+            if update:
+                logging.debug(f'update if {self._device_name} successfull')
+            else:
+                logging.error(f'could not update {self._device_name}')
+            return update
 
     def set_device_tags(self, new_tags):
         self.add_device_tags(new_tags, True)

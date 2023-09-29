@@ -44,6 +44,7 @@ class Sot:
 
         self._sot_config['nautobot_url'] = properties.get('url')
         self._sot_config['nautobot_token'] = properties.get('token')
+        self._sot_config['ssl_verify'] = properties.get('ssl_verify')
         self._sot_config['git'] = properties.get('git')
 
     def __getattr__(self, item):
@@ -78,6 +79,9 @@ class Sot:
 
     def get_token(self):
         return self._sot_config['nautobot_token']
+
+    def get_ssl_verify(self):
+        return self._sot_config['ssl_verify']
 
     def get_nautobot_url(self):
         return self._sot_config['nautobot_url']
