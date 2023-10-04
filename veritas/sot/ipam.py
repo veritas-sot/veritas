@@ -540,8 +540,6 @@ class Ipam(object):
     # -----===== IP assignment management =====-----
 
     def assign_interface(self, ip_address):
-        logging.debug("-- entering interfaces.py/assign_interface")
-
         self.open_nautobot()
         logging.debug(f'prepare assignment of IP address: {ip_address}')
 
@@ -602,12 +600,20 @@ class Ipam(object):
                 ip_address,
                 self._device))
 
-            nb_ipadd = nb_ipadd.update({
-                'assigned_object_type': "dcim.interface",
-                'assigned_object_id': nb_interface.id})
+            if self._sot.get_version() == 2:
+                response = self._nautobot.ipam.ip_address_to_interface.create(
+                    {"interface": nb_interface.id, 
+                     "ip_address": nb_ipadd.id,
+                     "is_primary": True}
+                )
+            else:
+                response = nb_ipadd.update({
+                    'assigned_object_type': "dcim.interface",
+                    'assigned_object_id': nb_interface.id})
 
-            if nb_ipadd:
+            if response:
                 logging.debug("IP address assigned")
+                return response
             else:
                 logging.debug("no update needed")
                 return nb_ipadd
