@@ -8,7 +8,7 @@ from ..tools import tools
 
 class Getter(object):
 
-    query_fragments = {
+    query_fragments_v1 = {
         # devices
         'id': 'id',
         'hostname': 'hostname: name',
@@ -80,10 +80,88 @@ class Getter(object):
         'vlan': 'vlan {vid name}',
     }
 
-    query_fragments_with_params = {
+    query_fragments = {
+        # devices
+        'id': 'id',
+        'hostname': 'hostname: name',
+        'primary_ip4': 'primary_ip4 {address}',
+        'site': 'site {name}',
+        'device_role': 'device_role {name}',
+        'device_type': 'device_type {model}',
+        'platform': 'platform {name manufacturer {name}}',
+        'tags': 'tags {name}',
+        'serial': 'serial',
+        'config_context': 'config_context',
+        'custom_fields': 'custom_field_data: _custom_field_data',
+        'interfaces': 'interfaces {\
+              name\
+              description\
+              enabled\
+              mac_address\
+              type\
+              mode\
+              ip_addresses {\
+                address\
+                role { \
+                    id \
+                } \
+                tags {\
+                  name\
+                }\
+              }\
+              connected_circuit_termination {\
+                circuit {\
+                  cid\
+                  commit_rate\
+                  provider {\
+                    name\
+                  }\
+                }\
+              }\
+              tagged_vlans {\
+                name\
+                vid\
+              }\
+              untagged_vlan {\
+                name\
+                vid\
+              }\
+              cable {\
+                termination_a_type\
+                status {\
+                  name\
+                }\
+                color\
+              }\
+              tags {\
+                name\
+              }\
+              lag {\
+                name\
+                enabled\
+              }\
+              member_interfaces {\
+                name\
+              }\
+            }',
+        # general
+        'vlans': 'vlans {vid name}',
+        # prefixes
+        'prefix': 'prefix',
+        'description': 'description',
+        'vlan': 'vlan {vid name}',
+    }
+
+    query_fragments_with_params_v1 = {
         'vlans': 'vlans (__general_string__) { id vid name site { name }}',
         'sites': 'sites (__general_string__) { id name slug }',
         'tags': 'tags (__general_string__) { id name slug content_types { id } }'
+    }
+
+    query_fragments_with_params = {
+        'vlans': 'vlans (__general_string__) { id vid name site { name }}',
+        'sites': 'sites (__general_string__) { id name }',
+        'tags': 'tags (__general_string__) { id name content_types { id } }'
     }
 
     scope_id_to_name = {'3': 'dcim.device',
@@ -115,14 +193,9 @@ class Getter(object):
             self._output_format = "dict"
         return self
 
-    def open_nautobot(self):
-        if self._nautobot is None:
-            self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token())
-            self._nautobot.http_session.verify = self._sot.get_ssl_verify()
-
     def _get_vlan(self, vid, site):
         logging.debug(f'getting vlan: {vid} / {site}')
-        self.open_nautobot()
+        self._nautobot = self._sot.open_nautobot()
 
         vlans = self._nautobot.ipam.vlans.filter(vid=vid)
         for vlan in vlans:
@@ -174,7 +247,10 @@ class Getter(object):
                 scope_name = self.scope_id_to_name.get(scope_id, scope_id)
                 if scope_name not in self._cache['tag']:
                     self._cache['tag'][scope_name] = {}
-                self._cache['tag'][scope_name][slug] = tag_id
+                if self._sot.get_version() == 1:
+                    self._cache['tag'][scope_name][slug] = tag_id
+                else:
+                    self._cache['tag'][scope_name][name] = tag_id
 
         for vlan in all_vlans['vlans']:
             site = vlan.get('site')
@@ -231,7 +307,7 @@ class Getter(object):
         returns ID of device, site, vlan or tag
         this is used by our onboarding APP
         """
-        self.open_nautobot()
+        self._nautobot = self._sot.open_nautobot()
         item = named.get('item')
         del named['item']
         logging.debug(f'getting id of {item}; parameter {named}')
@@ -287,9 +363,12 @@ class Getter(object):
                     self._cache['vlan'][site_name][vid] = vlan.id
                     return vlan.id
         elif item =="tag":
-            slug = named.get('slug')
+            if self._sot.get_version() == 1:
+                entity = named.get('slug')
+            else:
+                entity = named.get('name')
             content_types = named.get('content_types')
-            id = self._cache['tag'].get(content_types, {}).get(slug, None)
+            id = self._cache['tag'].get(content_types, {}).get(entity, None)
             if id:
                 logging.debug(f'using cached id')
                 return id
@@ -300,14 +379,14 @@ class Getter(object):
                     self._cache['tag'][content_types] = tag.id
                     return tag.id
                 else:
-                    logging.error(f'unknown tag {slug}')
+                    logging.error(f'unknown tag {entity}')
                     return None
             except Exception as exc:
                 logging.error(f'got exception {exc}')
                 return None
 
     def changes(self, *unnamed, **named):
-        self.open_nautobot()
+        self._nautobot = self._sot.open_nautobot()
 
         properties = tools.convert_arguments_to_properties(unnamed, named)
         if 'start' in properties:
@@ -332,7 +411,9 @@ class Getter(object):
         using = properties.get('using','nb.devices')
         values = properties.get('values',['hostname'])
         logging.debug(f'query using {using} ... with parameter {values} ... normalize {properties.get("normalize", False)}')
-        response = self._advanced_query(values=values, using=using, parameter=properties.get('parameter'))
+        response = self._advanced_query(values=values, 
+                                        using=using, 
+                                        parameter=properties.get('parameter'))
 
         if properties.get('normalize', False):
             return self._normalize_response(properties, response)
@@ -447,9 +528,10 @@ class Getter(object):
         query = query.replace('__values__','')
         query = query.replace('__values_with_param__','')
 
-        self.open_nautobot()
+        self._nautobot = self._sot.open_nautobot()
         #logging.debug(f'query: {query} variables {query_params}')
-        response = self._nautobot.graphql.query(query=query, variables=query_params).json
+        response = self._nautobot.graphql.query(query=query, 
+                                                variables=query_params).json
         if 'primary_ip4' in query_params:
             data = dict(response)['data']['ip_addresses']
         elif 'nb.ipam' in using:

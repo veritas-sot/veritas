@@ -21,12 +21,15 @@ class Ipam(object):
         cls._new_ipv4 = []
         cls._ipv4 = {'address': None, 'status': None}
         cls._ipv4_assignment = {'device': None,
-                            'interface': None,
-                            'interface_type': None,
-                            'description': None}
+                                'interface': None,
+                                'interface_type': None,
+                                'description': None}
 
         cls._ipv4_assignments = []
-        cls._ipv4_defaults = {'status': 'active'}
+        if sot.get_version() == 2:
+            cls._ipv4_defaults = {'status': {'name': 'Active'}}
+        else:
+            cls._ipv4_defaults = {'status': 'active'}
 
         cls._vlan_defaults = {}
         cls._prefix_defaults = {}
@@ -373,8 +376,12 @@ class Ipam(object):
         if len(properties) > 0:
             properties.update({'prefix': self._last_requested_prefix})
         else:
-            properties.update({'prefix': self._last_requested_prefix,
-                               'status': 'active'})
+            properties.update({'prefix': self._last_requested_prefix})
+
+            if self._sot.get_version() == 2:
+                properties.update({'status': {'name': 'Active'}})
+            else:
+                properties.update({'status': device_defaults['status']})
 
         logging.debug(f'add prefix: {properties}')
 
@@ -444,8 +451,11 @@ class Ipam(object):
             properties.update({'vid': self._last_requested_vlan})
         else:
             properties.update({'vid': self._last_requested_vlan,
-                               'name': 'vlan-%s' % self._last_requested_vlan,
-                               'status': 'active'})
+                               'name': 'vlan-%s' % self._last_requested_vlan})
+            if self._sot.get_version() == 2:
+                properties.update({'status': {'name': 'Active'}})
+            else:
+                properties.update({'status': device_defaults['status']})
 
         logging.debug(f'getting all vlans with vid {properties["vid"]}')
         vlans = self._nautobot.ipam.vlans.filter(vid=properties['vid'])
@@ -548,8 +558,12 @@ class Ipam(object):
             if self._add_missing_ip:
                 logging.debug(f'unknown IP address {ip_address} adding it to sot')
                 properties = {'address': ip_address,
-                              'description': 'IP',
-                              'status': 'active'}
+                              'description': 'IP'}
+                if self._sot.get_version() == 2:
+                    properties.update({'status': {'name': 'Active'}})
+                else:
+                    properties.update({'status': device_defaults['status']})
+
                 nb_ipadd = self.add_ipv4(properties)
                 if nb_ipadd:
                     logging.debug(f'added IP {ip_address} to sot')

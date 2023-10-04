@@ -311,9 +311,14 @@ class Device:
                 logging.debug(f'using primary IP {self._primary_ipv4}')
 
             # add primary IP address to sot
-            primary_ipv4 = self._sot.ipam \
-                .ipv4(self._primary_ipv4) \
-                .add({'status': 'active'})
+            if self._sot.get_version() == 2:
+                primary_ipv4 = self._sot.ipam \
+                    .ipv4(self._primary_ipv4) \
+                    .add(status= {'name': 'Active'}, namespace='Global')
+            else:
+                primary_ipv4 = self._sot.ipam \
+                    .ipv4(self._primary_ipv4) \
+                    .add({'status': 'active'})
 
             if primary_ipv4:
                 logging.debug(f'added ip address to sot; now assign interface {primary_interface} to {self._primary_ipv4}')

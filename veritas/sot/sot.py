@@ -3,6 +3,7 @@ import os
 import json
 import yaml
 from dotenv import load_dotenv, dotenv_values
+from pynautobot import api
 from . import device
 from . import ipam
 from . import getter
@@ -31,6 +32,7 @@ class Sot:
         self.__selection = None
         self.__importer = None
         self.__auth = None
+        self._nautobot = None
 #        self.__analyzer = None
         self.__configparser = None
         self.__updater = None
@@ -117,3 +119,13 @@ class Sot:
         if self.__auth is None:
             self.__auth = auth.Auth(self, **parameter)
         return self.__auth
+    
+    def open_nautobot(self):
+        if self._nautobot is None:
+            api_version = "1.3" if self._sot_config['version'] == 1 else "2.0"
+            self._nautobot = api(self._sot_config['nautobot_url'], 
+                                 token=self._sot_config['nautobot_token'], 
+                                 api_version=api_version)
+            self._nautobot.http_session.verify = self._sot_config['ssl_verify']
+            logging.debug(f'nautobot api object created version={api_version}')
+        return self._nautobot

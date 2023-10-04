@@ -49,7 +49,11 @@ class Importer(object):
 
     def open_nautobot(self):
         if self._nautobot is None:
-            self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token())
+            version = self._sot.get_version()
+            api_version = "1.3" if version == 1 else "2.0"
+            self._nautobot = api(self._sot.get_nautobot_url(), 
+                                 token=self._sot.get_token(), 
+                                 api_version=api_version)
             self._nautobot.http_session.verify = self._sot.get_ssl_verify()
 
     def add_entity(self, func, properties):
