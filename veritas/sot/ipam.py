@@ -603,8 +603,7 @@ class Ipam(object):
             if self._sot.get_version() == 2:
                 response = self._nautobot.ipam.ip_address_to_interface.create(
                     {"interface": nb_interface.id, 
-                     "ip_address": nb_ipadd.id,
-                     "is_primary": True}
+                     "ip_address": nb_ipadd.id}
                 )
             else:
                 response = nb_ipadd.update({
