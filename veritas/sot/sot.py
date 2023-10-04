@@ -10,7 +10,7 @@ from . import selection
 from . import device
 from . import importer
 from . import auth
-from . import analyzer
+#from . import analyzer
 from . import configparser
 from . import updater
 from . import rest
@@ -31,7 +31,7 @@ class Sot:
         self.__selection = None
         self.__importer = None
         self.__auth = None
-        self.__analyzer = None
+#        self.__analyzer = None
         self.__configparser = None
         self.__updater = None
         self.__job = None
@@ -44,6 +44,7 @@ class Sot:
 
         self._sot_config['nautobot_url'] = properties.get('url')
         self._sot_config['nautobot_token'] = properties.get('token')
+        self._sot_config['version'] = properties.get('version',2)
         self._sot_config['ssl_verify'] = properties.get('ssl_verify')
         self._sot_config['git'] = properties.get('git')
 
@@ -64,10 +65,10 @@ class Sot:
             if self.__auth is None:
                 self.__auth = auth.Auth(self)
             return self.__auth
-        if item == "analyzer":
-            if self.__analyzer is None:
-                self.__analyzer = analyzer.Analyzer(self)
-            return self.__analyzer
+        # if item == "analyzer":
+        #     if self.__analyzer is None:
+        #         self.__analyzer = analyzer.Analyzer(self)
+        #     return self.__analyzer
         if item == "updater":
             if self.__updater is None:
                 self.__updater = updater.Updater(self)
@@ -85,6 +86,9 @@ class Sot:
 
     def get_nautobot_url(self):
         return self._sot_config['nautobot_url']
+
+    def get_version(self):
+        return self._sot_config['version']
 
     def get_git(self):
         return self._sot_config['git']

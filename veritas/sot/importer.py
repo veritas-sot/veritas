@@ -11,13 +11,16 @@ class Importer(object):
     def __init__(self, sot):
         logging.debug(f'Creating IMPORTER object;')
         self._sot = sot
-        self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token(), api_version=1.3)
+        version = self._sot.get_version()
+        api_version = "1.3" if version == 1 else "2.0"
+        self._nautobot = api(self._sot.get_nautobot_url(), 
+                             token=self._sot.get_token(), 
+                             api_version=api_version)
 
         self._endpoints = {'sites': self._nautobot.dcim.sites,
                            'manufacturers': self._nautobot.dcim.manufacturers,
                            'platforms': self._nautobot.dcim.platforms,
                            'devices': self._nautobot.dcim.devices,
-                           'device_roles': self._nautobot.dcim.device_roles,
                            'prefixes': self._nautobot.ipam.prefixes,
                            'location_types': self._nautobot.dcim.location_types,
                            'locations': self._nautobot.dcim.locations,
@@ -31,6 +34,12 @@ class Importer(object):
                            'console_port_templates': self._nautobot.dcim.console_port_templates,
                            'power_port_templates': self._nautobot.dcim.power_port_templates,
                            'device_bay_templates': self._nautobot.dcim.device_bay_templates,}
+
+        if version > 1:
+            # beginning with version 2 device roles are now part of extra.roles
+            self._endpoints.update({'device_roles': self._nautobot.extras.roles})
+        else:
+            self._endpoints.update({'device_roles': self._nautobot.dcim.device_roles})
 
     def __getattr__(self, item):
         if item == "xxx":
