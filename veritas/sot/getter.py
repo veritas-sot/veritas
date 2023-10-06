@@ -8,85 +8,13 @@ from ..tools import tools
 
 class Getter(object):
 
-    query_fragments_v1 = {
-        # devices
-        'id': 'id',
-        'hostname': 'hostname: name',
-        'primary_ip4': 'primary_ip4 {address}',
-        'site': 'site {name slug}',
-        'device_role': 'device_role {name slug}',
-        'device_type': 'device_type {model slug}',
-        'platform': 'platform {name slug manufacturer {name}}',
-        'tags': 'tags {name}',
-        'serial': 'serial',
-        'config_context': 'config_context',
-        'custom_fields': 'custom_field_data: _custom_field_data',
-        'interfaces': 'interfaces {\
-              name\
-              description\
-              enabled\
-              mac_address\
-              type\
-              mode\
-              ip_addresses {\
-                address\
-                role\
-                tags {\
-                  slug\
-                  name\
-                }\
-              }\
-              connected_circuit_termination {\
-                circuit {\
-                  cid\
-                  commit_rate\
-                  provider {\
-                    name\
-                  }\
-                }\
-              }\
-              tagged_vlans {\
-                name\
-                vid\
-              }\
-              untagged_vlan {\
-                name\
-                vid\
-              }\
-              cable {\
-                termination_a_type\
-                status {\
-                  name\
-                }\
-                color\
-              }\
-              tags {\
-                slug\
-                name\
-              }\
-              lag {\
-                name\
-                enabled\
-              }\
-              member_interfaces {\
-                name\
-              }\
-            }',
-        # general
-        'vlans': 'vlans {vid name}',
-        # prefixes
-        'prefix': 'prefix',
-        'description': 'description',
-        'vlan': 'vlan {vid name}',
-    }
-
     query_fragments = {
         # devices
         'id': 'id',
         'hostname': 'hostname: name',
         'primary_ip4': 'primary_ip4 {address}',
-        'site': 'site {name}',
-        'device_role': 'device_role {name}',
+        'location': 'location {name}',
+        'role': 'role {name}',
         'device_type': 'device_type {model}',
         'platform': 'platform {name manufacturer {name}}',
         'tags': 'tags {name}',
@@ -152,15 +80,9 @@ class Getter(object):
         'vlan': 'vlan {vid name}',
     }
 
-    query_fragments_with_params_v1 = {
-        'vlans': 'vlans (__general_string__) { id vid name site { name }}',
-        'sites': 'sites (__general_string__) { id name slug }',
-        'tags': 'tags (__general_string__) { id name slug content_types { id } }'
-    }
-
     query_fragments_with_params = {
-        'vlans': 'vlans (__general_string__) { id vid name site { name }}',
-        'sites': 'sites (__general_string__) { id name }',
+        'vlans': 'vlans (__general_string__) { id vid name location { name }}',
+        'location': 'location (__general_string__) { id name }',
         'tags': 'tags (__general_string__) { id name content_types { id } }'
     }
 
@@ -174,7 +96,7 @@ class Getter(object):
         cls._nautobot = None
         cls._output_format = None
         cls._use = None
-        cls._cache = {'site':{}, 'vlan': {}, 'tag': {}, 'device': {} }
+        cls._cache = {'location':{}, 'vlan': {}, 'tag': {}, 'device': {} }
 
         # singleton
         if cls._instance is None:
@@ -237,7 +159,6 @@ class Getter(object):
                          .where()
 
         for tag in all_tags['tags']:
-            slug = tag['slug']
             tag_id = tag['id']
             scopes = tag['content_types']
             for scope in scopes:
@@ -247,10 +168,7 @@ class Getter(object):
                 scope_name = self.scope_id_to_name.get(scope_id, scope_id)
                 if scope_name not in self._cache['tag']:
                     self._cache['tag'][scope_name] = {}
-                if self._sot.get_version() == 1:
-                    self._cache['tag'][scope_name][slug] = tag_id
-                else:
-                    self._cache['tag'][scope_name][name] = tag_id
+                self._cache['tag'][scope_name][name] = tag_id
 
         for vlan in all_vlans['vlans']:
             site = vlan.get('site')
@@ -363,10 +281,7 @@ class Getter(object):
                     self._cache['vlan'][site_name][vid] = vlan.id
                     return vlan.id
         elif item =="tag":
-            if self._sot.get_version() == 1:
-                entity = named.get('slug')
-            else:
-                entity = named.get('name')
+            entity = named.get('name')
             content_types = named.get('content_types')
             id = self._cache['tag'].get(content_types, {}).get(entity, None)
             if id:
