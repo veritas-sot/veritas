@@ -8,7 +8,7 @@ class Updater(object):
     def __new__(cls, sot):
         cls._instance = None
         cls._sot = sot
-        cls._nautobot = api(cls._sot.get_nautobot_url(), token=cls._sot.get_token(), api_version=1.3)
+        cls._nautobot = cls._sot.open_nautobot()
         cls._endpoints = {'sites': cls._nautobot.dcim.sites,
                           'manufacturers': cls._nautobot.dcim.manufacturers,
                           'platforms': cls._nautobot.dcim.platforms,
@@ -32,11 +32,6 @@ class Updater(object):
             logging.debug(f'Creating UPDATER object')
             cls._instance = super(Updater, cls).__new__(cls)
         return cls._instance
-
-    def open_nautobot(self):
-        if self._nautobot is None:
-            self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token())
-            self._nautobot.http_session.verify = self._sot.get_ssl_verify()
 
     def update_entity(self, func, properties, getter):
         """
@@ -68,7 +63,6 @@ class Updater(object):
         return entity
 
     def update(self, *unnamed, **named):
-        logging.debug("-- entering sot/updater.py/update")
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         endpoint_name = properties.get('endpoint')
         values = properties.get('values')
@@ -80,10 +74,7 @@ class Updater(object):
         return self.update_entity(endpoint, values, getter)
 
     def update_by_id(self, *unnamed, **named):
-        logging.debug("-- entering sot/updater.py/update_by_id")
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        self.open_nautobot()
         id = properties.get('id')
         del properties['id']
         d = self._nautobot.dcim.devices.update(id=id, data=properties)
-

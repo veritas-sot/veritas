@@ -11,16 +11,12 @@ class Importer(object):
     def __init__(self, sot):
         logging.debug(f'Creating IMPORTER object;')
         self._sot = sot
-        version = self._sot.get_version()
-        api_version = "1.3" if version == 1 else "2.0"
-        self._nautobot = api(self._sot.get_nautobot_url(), 
-                             token=self._sot.get_token(), 
-                             api_version=api_version)
+        self._nautobot = self._sot.open_nautobot()
 
-        self._endpoints = {'sites': self._nautobot.dcim.sites,
-                           'manufacturers': self._nautobot.dcim.manufacturers,
+        self._endpoints = {'manufacturers': self._nautobot.dcim.manufacturers,
                            'platforms': self._nautobot.dcim.platforms,
                            'devices': self._nautobot.dcim.devices,
+                           'roles': self._nautobot.extras.roles,
                            'prefixes': self._nautobot.ipam.prefixes,
                            'location_types': self._nautobot.dcim.location_types,
                            'locations': self._nautobot.dcim.locations,
@@ -35,26 +31,11 @@ class Importer(object):
                            'power_port_templates': self._nautobot.dcim.power_port_templates,
                            'device_bay_templates': self._nautobot.dcim.device_bay_templates,}
 
-        if version > 1:
-            # beginning with version 2 device roles are now part of extra.roles
-            self._endpoints.update({'device_roles': self._nautobot.extras.roles})
-        else:
-            self._endpoints.update({'device_roles': self._nautobot.dcim.device_roles})
-
     def __getattr__(self, item):
         if item == "xxx":
             return self
 
     # -----===== internals =====----- 
-
-    def open_nautobot(self):
-        if self._nautobot is None:
-            version = self._sot.get_version()
-            api_version = "1.3" if version == 1 else "2.0"
-            self._nautobot = api(self._sot.get_nautobot_url(), 
-                                 token=self._sot.get_token(), 
-                                 api_version=api_version)
-            self._nautobot.http_session.verify = self._sot.get_ssl_verify()
 
     def add_entity(self, func, properties):
         try:
@@ -80,10 +61,7 @@ class Importer(object):
         return content
 
     def import_data(self, data, title, creator, bulk=False):
-        logging.debug("-- entering importer.py/import_data")
-        self.open_nautobot()
         success = False
-
         if bulk:
             success = self.add_entity(creator, data)
             if success:
@@ -102,8 +80,6 @@ class Importer(object):
     # -----===== user commands =====----- 
 
     def add(self, *unnamed, **named):
-        logging.debug("-- entering importer.py/add")
-        self.open_nautobot()
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         endpoint = properties.get('endpoint')
         if not endpoint:
