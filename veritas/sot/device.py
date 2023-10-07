@@ -68,18 +68,13 @@ class Device:
 
     # -----===== internals =====-----
 
-    def open_nautobot(self):
-        if self._nautobot is None:
-            self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token())
-            self._nautobot.http_session.verify = self._sot.get_ssl_verify()
-
     def _get_device_from_nautobot(self, refresh=False):
         # sometimes we need to refresh the object eg. when adding tags
-        # when adding a a list of tags the object will not notice that the tags
+        # when adding a list of tags the object will not notice that the tags
         # have changed
         if self._device_obj is None or refresh:
             logging.debug("getting device from sot")
-            self.open_nautobot()
+            self._nautobot = self._sot.self.open_nautobot()
             if self._device_name is not None:
                 self._device_obj = self._nautobot.dcim.devices.get(name=self._device_name)
             elif self._device_ip is not None:
@@ -111,7 +106,7 @@ class Device:
                              .using('nb.devices') \
                              .normalize(True) \
                              .where(f'primary_ip4={ip}')
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
         return self._nautobot.dcim.devices.get(id=response[0]['id'])
 
     # -----===== user commands =====-----
@@ -121,7 +116,7 @@ class Device:
         return self._get_device_from_nautobot()
 
     def get_all_interfaces(self):
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
         return self._nautobot.dcim.interfaces.filter(device_id=self._get_device_from_nautobot().id)
 
     def add(self, *unnamed, **named):
@@ -181,7 +176,7 @@ class Device:
 
     def connection_to(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
         
         name_of_side_b = properties.get('device')
         name_of_interface_b = properties.get('interface')
@@ -211,7 +206,7 @@ class Device:
                 logging.error(f'connection could not created successfully')
 
     def add_list_of_interfaces(self, list_of_interfaces):
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
 
         try:
             return self._nautobot.dcim.interfaces.create(list_of_interfaces)
@@ -270,7 +265,7 @@ class Device:
     # -----===== Device Management =====-----
 
     def add_device(self, device_properties):
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
         logging.debug(f'add device: {device_properties} use_defaults: {self._use_defaults}')
         for key in self._device_mandatory_properties:
             if key not in device_properties:
@@ -279,14 +274,12 @@ class Device:
                     device_properties[key] = self._device_default_values.get(key)
                 else:
                     logging.error(f'mandatory property {key} is missing')
-                    logging.debug(f'-- leaving device.py/add_device')
                     return False
 
         device_properties['name'] = self._device_name
         nb_device = self._nautobot.dcim.devices.create(device_properties)
         if nb_device is None:
             logging.error(f'could not add device {self._device_name} to SOT')
-            logging.debug(f'-- leaving device.py/add_device')
             return None
 
         # check if we have to add a primary interface
@@ -300,25 +293,18 @@ class Device:
 
             if primary_interface is None:
                 logging.error("creating interface failed")
-                logging.debug(f'-- leaving device.py/add_device')
                 return nb_device
 
             if self._primary_ipv4 is None:
                 logging.debug("no primary ipv4 specified; skipping assignment of the interface")
-                logging.debug(f'-- leaving device.py/add_device')
                 return nb_device
             else:
                 logging.debug(f'using primary IP {self._primary_ipv4}')
 
             # add primary IP address to sot
-            if self._sot.get_version() == 2:
-                primary_ipv4 = self._sot.ipam \
-                    .ipv4(self._primary_ipv4) \
-                    .add(status= {'name': 'Active'}, namespace='Global')
-            else:
-                primary_ipv4 = self._sot.ipam \
-                    .ipv4(self._primary_ipv4) \
-                    .add({'status': 'active'})
+            primary_ipv4 = self._sot.ipam \
+                .ipv4(self._primary_ipv4) \
+                .add(status= {'name': 'Active'}, namespace='Global')
 
             if primary_ipv4:
                 logging.debug(f'added ip address to sot; now assign interface {primary_interface} to {self._primary_ipv4}')
@@ -340,16 +326,14 @@ class Device:
                     return None
                 if success is None:
                     logging.error("make interface primary failed")
-                    logging.debug(f'-- leaving device.py/add_device')
                     return None
                 else:
                     logging.debug('successfully marked interface as primary')
     
-        logging.debug(f'-- leaving device.py/add_device')
         return nb_device
 
     def update_device(self, device_properties, convert_to_id=True):
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
 
         nb_device = self._get_device_from_nautobot()
         if nb_device is None:
@@ -371,7 +355,7 @@ class Device:
             return None
 
     def delete_device(self):
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
         logging.debug(f'deleting device {self._device_name} from sot')
 
         entity = self._nautobot.dcim.devices.get(name=self._device_name)
@@ -383,7 +367,7 @@ class Device:
 
     def set_customfield(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
 
         if self._last_request == "interface":
             logging.debug(f'setting custom field {properties} on interface {self._last_requested_interface}')
@@ -409,7 +393,7 @@ class Device:
         self.add_device_tags(new_tags, True)
 
     def add_device_tags(self, new_tags, set_tag=False):
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
         final_list = []
 
         if not set_tag:
@@ -440,7 +424,7 @@ class Device:
             entity.update(properties)
 
     def delete_device_tags(self):
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
         logging.debug(f'deleting tags {self._tags_to_delete} from sot')
 
         new_device_tags = self._tags_to_delete
@@ -464,7 +448,7 @@ class Device:
         entity.update(properties)
 
     def _convert_to_ids(self, newconfig, convert_device_to_uuid=True, convert_interface_to_uuid=False):
-        self.open_nautobot()
+        self._nautobot = self._sot.self.open_nautobot()
         success = True
         error = ""
 
