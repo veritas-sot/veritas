@@ -114,7 +114,6 @@ class Ipam(object):
             return self.get_prefix()
 
     def add(self, *unnamed, **named):
-        logging.debug("-- entering sot/ipam.py/add")
         properties = self.__convert_arguments_to_properties(*unnamed, **named)
         if self._last_request == "ipv4":
             properties.update({'address': self._last_requested_ipv4})

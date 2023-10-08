@@ -4,11 +4,10 @@ import json
 import yaml
 from dotenv import load_dotenv, dotenv_values
 from pynautobot import api
-from . import device
 from . import ipam
 from . import getter
 from . import selection
-from . import device
+from . import onboarding
 from . import importer
 from . import auth
 #from . import analyzer
@@ -26,7 +25,7 @@ class Sot:
 
     def __init__(self, **properties):
         # initialize variables
-        self.__devices = {}
+        self.__onboarding = None
         self.__ipam = None
         self.__getter = None
         self.__selection = None
@@ -51,6 +50,10 @@ class Sot:
         self._sot_config['git'] = properties.get('git')
 
     def __getattr__(self, item):
+        if item == "onboarding":
+            if self.__onboarding is None:
+                self.__onboarding = onboarding.Onboarding(self)
+            return self.__onboarding
         if item == "ipam":
             if self.__ipam is None:
                 self.__ipam = ipam.Ipam(self)
@@ -97,11 +100,6 @@ class Sot:
 
     def get_config(self):
         return self._sot_config
-
-    def device(self, name):
-        if name not in self.__devices:
-            self.__devices[name] = device.Device(self, name)
-        return self.__devices[name]
 
     def select(self, *unnamed, **named):
         return selection.Selection(self, *unnamed, **named)
