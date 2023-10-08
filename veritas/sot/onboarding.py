@@ -129,17 +129,18 @@ class Onboarding:
 
         logging.debug(f'properties: {properties}')
         device = self._add_device_to_nautobot(properties)
-        # add  interface(s) to device
+        # add interface(s) to device
         if device and len(self._interfaces) > 0:
             response = self._add_interfaces_to_nautobot(device)
             for interface in self._interfaces:
                 ipv4 = interface.get('ipv4')
                 if ipv4:
-                    nb_interface = self._nautobot.dcim.interfaces.get(
-                        device_id=device.id,
-                        name=interface.get('name'))
                     ip_address = self._add_ipv4_to_nautbot(device, ipv4)
-                    assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
+                    if self._assign_ip:
+                        nb_interface = self._nautobot.dcim.interfaces.get(
+                            device_id=device.id,
+                            name=interface.get('name'))
+                        assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
 
         if device and self._add_prefix:
             prefix = self._add_prefix_to_nautobot()
