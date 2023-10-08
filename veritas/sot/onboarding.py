@@ -135,15 +135,15 @@ class Onboarding:
             for interface in self._interfaces:
                 ipv4 = interface.get('ipv4')
                 if ipv4:
+                    if self._add_prefix:
+                        prefix = self._add_prefix_to_nautobot()
+
                     ip_address = self._add_ipv4_to_nautbot(device, ipv4)
                     if self._assign_ip:
                         nb_interface = self._nautobot.dcim.interfaces.get(
                             device_id=device.id,
                             name=interface.get('name'))
                         assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
-
-        if device and self._add_prefix:
-            prefix = self._add_prefix_to_nautobot()
 
         return device
 
