@@ -45,6 +45,7 @@ class Onboarding:
         self._is_primary = False
         self._interfaces = []
         self._add_prefix = True
+        self._assign_ip = True
         self._use_device_if_already_exists = True
         self._use_interface_if_already_exists = True
         self._use_ip_if_already_exists = True
@@ -106,6 +107,12 @@ class Onboarding:
         self._is_primary = is_primary
         return self
 
+    def assign_ip(self, assign_ip):
+        """set assign_ip"""
+        logging.debug(f'setting _assign_ip to {assign_ip}')
+        self._assign_ip = assign_ip
+        return self
+
     # ---------- commands ----------
 
     def add_device(self, *unnamed, **named):
@@ -160,32 +167,6 @@ class Onboarding:
             else:
                 logging.error(exc)
         return None 
-
-    # def _add_interface_to_nautobot(self, device):
-    #     """add interface to nautobot"""
-    #     logging.debug(f'adding (single) interface to device {device}')
-
-    #     # check if device id is in interface properties
-    #     interface = self._interfaces[0]
-    #     if not 'device' in interface:
-    #         interface['device'] = device.id
-    #     if 'ipv4' in interface:
-    #         ipv4 = interface['ipv4']
-    #         del interface['ipv4']
-
-    #     try:
-    #         return self._nautobot.dcim.interfaces.create(interface)
-    #     except Exception as exc:
-    #         if 'The fields device, name must make a unique set.' in str(exc):
-    #             logging.debug(f'an interface with this name already exists')
-    #             if self._use_interface_if_already_exists:
-    #                 logging.debug(f'returning interface {self._interfaces[0]["name"]} instead of None')
-    #                 return self._nautobot.dcim.interfaces.get(
-    #                     device_id=device.id,
-    #                     name=self._interfaces[0]['name'])
-    #         else:
-    #             logging.error(exc)
-    #     return None 
 
     def _add_interfaces_to_nautobot(self, device):
         """add interfaces to nautobot"""
