@@ -44,8 +44,10 @@ class Onboarding:
         self._primary_interface = None
         self._is_primary = False
         self._interfaces = []
+        self._vlans = []
         self._add_prefix = True
         self._assign_ip = True
+        self._bulk = True
         self._use_device_if_already_exists = True
         self._use_interface_if_already_exists = True
         self._use_ip_if_already_exists = True
@@ -60,7 +62,7 @@ class Onboarding:
         self._make_interface_primary = True
         return self
 
-    def interface(self, *unnamed, **named):
+    def interfaces(self, *unnamed, **named):
         """add interface to nautobot"""
         logging.debug(f'adding interface to list of interfaces')
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
@@ -69,6 +71,17 @@ class Onboarding:
                 self._interfaces.append(property)
         else:
             self._interfaces.append(properties)
+        return self
+
+    def vlans(self, *unnamed, **named):
+        """add vlans to nautobot"""
+        logging.debug(f'adding vlan to list of VLANS')
+        properties = tools.convert_arguments_to_properties(*unnamed, **named)
+        if isinstance (properties, list):
+            for property in properties:
+                self._vlans.append(property)
+        else:
+            self._vlans.append(properties)
         return self
 
     def primary_interface(self, primary_interface):
@@ -113,6 +126,12 @@ class Onboarding:
         self._assign_ip = assign_ip
         return self
 
+    def bulk(self, bulk):
+        """set bulk"""
+        logging.debug(f'setting _bulk to {bulk}')
+        self._bulk = bulk
+        return self
+
     # ---------- commands ----------
 
     def add_device(self, *unnamed, **named):
@@ -126,15 +145,36 @@ class Onboarding:
             properties['role'] = {'name': properties['role']}
         if 'manufacturer' in properties:
             properties['manufacturer'] = {'name': properties['manufacturer']}
+        if 'platform' in properties:
+            properties['platform'] = {'name': properties['platform']}
+        if 'status' in properties:
+            properties['status'] = {'name': properties['status']}
+
+        # now all virtual interfaces must be added
+        # thereafter physical interfaces
+        virtual_interfaces = []
+        physical_interfaces = []
+        for interface in self._interfaces:
+            if 'port-channel' in interface['name'].lower():
+                virtual_interfaces.append(interface)
+            else:
+                physical_interfaces.append(interface)
 
         logging.debug(f'properties: {properties}')
         device = self._add_device_to_nautobot(properties)
+        # first of all VLANs are added to the SOT
+        if device and len(self._vlans) > 0:
+            self._add_vlans_to_nautobot()
+
         # add interface(s) to device
+        logging.debug(f'adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
         if device and len(self._interfaces) > 0:
-            response = self._add_interfaces_to_nautobot(device)
+            v_response = self._add_interfaces_to_nautobot(device, virtual_interfaces)
+            p_response = self._add_interfaces_to_nautobot(device, physical_interfaces)
             for interface in self._interfaces:
                 ipv4 = interface.get('ipv4')
                 if ipv4:
+                    logging.debug(f'found IPv4 {ipv4} on device {device}')
                     if self._add_prefix:
                         prefix = self._add_prefix_to_nautobot()
 
@@ -144,7 +184,7 @@ class Onboarding:
                             device_id=device.id,
                             name=interface.get('name'))
                         assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
-
+                        logging.debug(f'assigned IPv4 {ipv4} on device {device} / nb_interface')
         return device
 
     # ---------- methods ----------
@@ -169,19 +209,27 @@ class Onboarding:
                 logging.error(exc)
         return None 
 
-    def _add_interfaces_to_nautobot(self, device):
-        """add interfaces to nautobot"""
-        logging.debug(f'adding {len(self._interfaces)} interfaces to device {device}')
+    def _add_vlans_to_nautobot(self):
+        try:
+            return self._nautobot.ipam.vlans.create(self._vlans)
+        except Exception as exc:
+            logging.error(exc)
+        return False
 
-        # check if device id is in interface properties
-        interfaces = list(self._interfaces)
+    def _add_interfaces_to_nautobot(self, device, interfaces):
+        """add interfaces to nautobot"""
+        logging.debug(f'adding {len(interfaces)} interfaces to device {device}')
+
         for interface in interfaces:
             if not 'device' in interface:
-                interface['device'] = device.id
-            # if 'ipv4' in interface:
-            #     del interface['ipv4']
-        logging.debug(f'adding list of interfaces {interfaces}')
-        return self._nautobot.dcim.interfaces.create(interfaces)
+                interface['device'] = {'id': device.id}
+
+        if self._bulk:
+            return self._nautobot.dcim.interfaces.create(interfaces)
+        else:
+            for interface in interfaces:
+                self._nautobot.dcim.interfaces.create(interface)
+            return True
 
     def _add_prefix_to_nautobot(self, ipv4):
         """add prefix to nautobot"""
@@ -195,7 +243,8 @@ class Onboarding:
         try:
             return self._nautobot.ipam.prefixes.create(properties)
         except Exception as exc:
-            print(exc)
+            logging.error(exc)
+        return False
 
     def _add_ipv4_to_nautbot(self, device, ipv4):
         """add IPv4 to nautobot"""
