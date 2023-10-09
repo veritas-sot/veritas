@@ -26,13 +26,12 @@ class Onboarding:
 
     sot.device(device_fqdn) \
                 .interface(interface_properties) \
-                .make_primary(True) \
+                .primary_interface(name_of_interface) \
                 .add(device_properties)
 
     sot.device(device_fqdn) \
                 .interface(list_of_interface_properties) \
                 .primary_interface(name_of_interface) \
-                .make_primary(True) \
                 .add(device_properties)
     """
 
@@ -41,7 +40,7 @@ class Onboarding:
 
         self._sot = sot
         self._make_interface_primary = False
-        self._primary_interface = None
+        self._primary_interface = ""
         self._is_primary = False
         self._interfaces = []
         self._vlans = []
@@ -56,11 +55,6 @@ class Onboarding:
         self._nautobot = self._sot.open_nautobot()
 
     # ---------- fluent attributes ----------
-
-    def make_primary(self, make_primary):
-        logging.debug(f'making interface the primary interface')
-        self._make_interface_primary = True
-        return self
 
     def interfaces(self, *unnamed, **named):
         """add interface to nautobot"""
@@ -114,12 +108,6 @@ class Onboarding:
         self._add_prefix = add_prefix
         return self
 
-    def is_primary(self, is_primary):
-        """set is_primary"""
-        logging.debug(f'setting _is_primary to {is_primary}')
-        self._is_primary = is_primary
-        return self
-
     def assign_ip(self, assign_ip):
         """set assign_ip"""
         logging.debug(f'setting _assign_ip to {assign_ip}')
@@ -161,7 +149,10 @@ class Onboarding:
                 physical_interfaces.append(interface)
 
         logging.debug(f'properties: {properties}')
+
+        # add device to nautobot
         device = self._add_device_to_nautobot(properties)
+
         # first of all VLANs are added to the SOT
         if device and len(self._vlans) > 0:
             self._add_vlans_to_nautobot()
@@ -185,6 +176,9 @@ class Onboarding:
                             name=interface.get('name'))
                         assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
                         logging.debug(f'assigned IPv4 {ipv4} on device {device} / nb_interface')
+        
+        # mark primary interface
+
         return device
 
     # ---------- methods ----------
@@ -266,18 +260,25 @@ class Onboarding:
         return None 
 
     def _assign_ipaddress_to_interface(self, device, interface, ip_address):
-        """assign IPv4 address to interface of device"""
+        """assign IPv4 address to interface of device and set primary IPv4"""
         logging.debug(f'assigning IP {ip_address} to {device}/{interface.display}')
-
         try:
-            return self._nautobot.ipam.ip_address_to_interface.create(
-                {"interface": interface.id,
-                "ip_address": ip_address.id}
-            )
+            properties = {'interface': interface.id,
+                          'ip_address': ip_address.id} 
+            assigned = self._nautobot.ipam.ip_address_to_interface.create(properties)
         except Exception as exc:
             if 'The fields interface, ip_address must make a unique set.' in str(exc):
                 logging.debug(f'this IP address is already assigned')
-                return True
+                assigned = True
             else:
+                assigned = False
                 logging.error(exc)
-        return False 
+        
+        if assigned and str(interface.display).lower() == self._primary_interface.lower():
+            logging.debug(f'found primary IP; update device and set primary IPv4')
+            try:
+                update = device.update({'primary_ip4': ip_address.id})
+            except Exception as exc:
+                logging.error(f'could not set primary IPv4 on {device}')
+
+        return assigned 
