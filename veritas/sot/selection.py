@@ -69,10 +69,15 @@ class Selection(object):
         logging.debug(f'query: values {self._values} using: {self._using} where {properties}')
         if 'nb.devices' in self._using:
             return self._adv_devices_query(values=self._values, expression=properties, normalize=self._normalize)
-        if 'nb.ipam' in self._using:
+        if 'nb.ipam.prefix' in self._using:
             return self._general_query(values=self._values, 
                                        expression=properties,
                                        default={'prefix': ''},
+                                       normalize=self._normalize)
+        if 'nb.ipam.vlan' in self._using:
+            return self._general_query(values=self._values, 
+                                       expression=properties,
+                                       default={'name': ''},
                                        normalize=self._normalize)
         if 'nb.general' in self._using:
             return self._general_query(values=self._values, 

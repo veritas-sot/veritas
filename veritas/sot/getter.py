@@ -80,10 +80,22 @@ class Getter(object):
         'vlan': 'vlan {vid name}',
     }
 
-    query_fragments_with_params = {
+    general_fragments = {
         'vlans': 'vlans (__general_string__) { id vid name location { name }}',
-        'location': 'location (__general_string__) { id name }',
+        'locations': 'locations (__general_string__) { id name }',
         'tags': 'tags (__general_string__) { id name content_types { id } }'
+    }
+
+    vlan_fragments = {
+        'id': 'id',
+        'vid': 'vid',
+        'name': 'name',
+        'description': 'description',
+        'status': 'status {id name}',
+        'tags': 'tags { name }',
+        'role': 'role { name }',
+        'location': 'location { name location_type { name } }',
+        'vlan_group': 'vlan_group{ name }'
     }
 
     scope_id_to_name = {'3': 'dcim.device',
@@ -96,7 +108,7 @@ class Getter(object):
         cls._nautobot = None
         cls._output_format = None
         cls._use = None
-        cls._cache = {'location':{}, 'vlan': {}, 'tag': {}, 'device': {} }
+        cls._cache = {'locations':{}, 'vlan': {}, 'tag': {}, 'device': {} }
 
         # singleton
         if cls._instance is None:
@@ -148,8 +160,8 @@ class Getter(object):
                          .normalize(False) \
                          .where()
 
-        all_vlans = self._sot.select('vlans') \
-                         .using('nb.general') \
+        all_vlans = self._sot.select('vid, location') \
+                         .using('nb.ipam.vlan') \
                          .normalize(False) \
                          .where()
         
@@ -161,34 +173,28 @@ class Getter(object):
         for tag in all_tags['tags']:
             tag_id = tag['id']
             scopes = tag['content_types']
+            name = tag['name']
             for scope in scopes:
                 scope_id = scope['id']
-                # scope_id: 4 interface
-                # scope_id: 3 device
                 scope_name = self.scope_id_to_name.get(scope_id, scope_id)
                 if scope_name not in self._cache['tag']:
                     self._cache['tag'][scope_name] = {}
                 self._cache['tag'][scope_name][name] = tag_id
 
-        for vlan in all_vlans['vlans']:
-            site = vlan.get('site')
-            if site:
-                site_name = site['name']
-            else:
-                site_name = None
+        for vlan in all_vlans:
+            site = vlan.get('location',{}).get('name') if vlan.get('location') else "global"
             vlan_vid = vlan['vid']
-            vlan_name = vlan['name']
             vlan_id = vlan['id']
             if site_name not in self._cache['vlan']:
-                self._cache['vlan'][site_name] = {}
-            self._cache['vlan'][site_name][vlan_vid] = vlan_id
+                self._cache['vlan'][site] = {}
+            self._cache['vlan'][site][vlan_vid] = vlan_id
 
-        for site in all_sites['sites']:
+        for site in all_sites['locations']:
             site_name = site.get('name')
             site_id = site.get('id')
-            if site_name not in self._cache['site']:
-                self._cache['site'][site_name] = {}
-            self._cache['site'][site_name] = site_id
+            if site_name not in self._cache['locations']:
+                self._cache['locations'][site_name] = {}
+            self._cache['locations'][site_name] = site_id
 
     def _normalize_response(self, properties, data):
         """ 
@@ -344,18 +350,26 @@ class Getter(object):
         devices = sot.get.adv_query(values=['custom_fields'],
                                     parameter={'cf_myfield': 'my_value'})
         """
+
         query_string = []
         device_string = []
         ipam_string = []
         general_string = []
+
         properties = tools.convert_arguments_to_properties(unnamed, named)
         query_params = properties.get('parameter',{})
+        query_values = properties.get('values',{})
         normalize = properties.get('normalize', False)
         using = properties.get('using', 'nb.devices')
+
+        logging.debug(f'using={using} query_params={query_params} query_values={query_values} normalize={normalize}')
+
         for key,value in dict(query_params).items():
-            # logging.debug(f'key {key} value {value}')
+            logging.debug(f'key {key} value {value}')
             key0 = key.split('__')[0]
             query_params[key0] = value
+            if key0 in ['vid']:
+                query_params[key0] = int(value)
             if key.startswith('cf_'):
                     device_string.append(f'{key}: ${key0}')
                     # if we use a lookup we have to use a list of strings
@@ -367,7 +381,14 @@ class Getter(object):
                 if 'primary_ip4' in key:
                     query_string.append(f'${key}: String')
                     device_string.append(f'parent: ${key}')
-                elif 'nb.ipam' in using:
+                elif 'nb.ipam.vlan' in using:
+                    if key in ['vid', 'id']:
+                        query_string.append(f'${key}: [Int]')
+                        device_string.append(f'{key}: ${key}')
+                    else:
+                        query_string.append(f'${key}: [String]')
+                        device_string.append(f'{key}: ${key}')
+                elif 'nb.ipam.prefixe' in using:
                     query_string.append(f'${key}: String')
                     device_string.append(f'{key}: ${key}')
                 elif 'nb.general' in using:
@@ -393,9 +414,16 @@ class Getter(object):
                      }
                    }
                 """
-        elif 'nb.ipam' in using:
+        elif 'nb.ipam.prefix' in using:
             query = """query (__query_string__) {
                         prefixes(__device_string__) {
+                        __values__
+                        }
+                    }
+                    """
+        elif 'nb.ipam.vlan' in using:
+            query = """query (__query_string__) {
+                        vlans(__device_string__) {
                         __values__
                         }
                     }
@@ -417,11 +445,19 @@ class Getter(object):
         if 'nb.general' in using:
             for value in properties.get('values',[]):
                 value = value.replace(' ','')
-                fragment = self.query_fragments_with_params.get(value)
+                fragment = self.general_fragments.get(value)
                 if fragment is None:
                     logging.error(f'unknown query value "{value}"')
                 else:
                     query = query.replace('__values_with_param__',f'{fragment} __values_with_param__')
+        elif 'nb.ipam.vlan' in using:
+            for value in properties.get('values',[]):
+                value = value.replace(' ','')
+                fragment = self.vlan_fragments.get(value)
+                if fragment is None:
+                    logging.error(f'unknown query value "{value}"')
+                else:
+                    query = query.replace('__values__',f'{fragment} __values__')
         else:
             for value in properties.get('values',[]):
                 value = value.replace(' ','')
@@ -444,12 +480,13 @@ class Getter(object):
         query = query.replace('__values_with_param__','')
 
         self._nautobot = self._sot.open_nautobot()
-        #logging.debug(f'query: {query} variables {query_params}')
-        response = self._nautobot.graphql.query(query=query, 
-                                                variables=query_params).json
+        logging.debug(f'query: {query} variables {query_params}')
+        response = self._nautobot.graphql.query(query=query, variables=query_params).json
         if 'primary_ip4' in query_params:
             data = dict(response)['data']['ip_addresses']
-        elif 'nb.ipam' in using:
+        elif 'nb.ipam.vlan' in using:
+            data = dict(response)['data']['vlans']
+        elif 'nb.ipam.prefix' in using:
             data = dict(response)['data']['prefixes']
         elif 'nb.general' in using:
             data = dict(response)['data']
