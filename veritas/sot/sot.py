@@ -45,7 +45,6 @@ class Sot:
 
         self._sot_config['nautobot_url'] = properties.get('url')
         self._sot_config['nautobot_token'] = properties.get('token')
-        self._sot_config['version'] = properties.get('version',2)
         self._sot_config['ssl_verify'] = properties.get('ssl_verify')
         self._sot_config['git'] = properties.get('git')
 
@@ -92,9 +91,6 @@ class Sot:
     def get_nautobot_url(self):
         return self._sot_config['nautobot_url']
 
-    def get_version(self):
-        return self._sot_config['version']
-
     def get_git(self):
         return self._sot_config['git']
 
@@ -120,7 +116,7 @@ class Sot:
     
     def open_nautobot(self):
         if self._nautobot is None:
-            api_version = "1.3" if self._sot_config['version'] == 1 else "2.0"
+            api_version = self._sot_config.get('version',2)
             ssl_verify = self._sot_config['ssl_verify']
             logging.debug(f'nautobot api object created version={api_version} ssl_verify={ssl_verify}')
             self._nautobot = api(self._sot_config['nautobot_url'], 

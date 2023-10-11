@@ -246,7 +246,7 @@ class Selection(object):
                         k = key.replace('cf_','')
                         values[k] = item.get('primary_ip4_for', {}).get('custom_field_data',{}).get(k)
                     else:
-                        values[key] = item.get('primary_ip4_for', {}).get(key)
+                        values[key] = item.get('primary_ip4_for', {})[0].get(key)
                 else:
                     if key.startswith('cf_'):
                         k = key.replace('cf_','')
@@ -277,6 +277,7 @@ class Selection(object):
             sot_response = self._sot.get.query(values=values, 
                                                parameter=gpql_parameter,
                                                normalize=False)
+            
             # we only need one list but have a list of dicts containing hostnames
             sot_devices = [ i['hostname'] for i in sot_response ]
             # now do the AND if we have a primary_ip

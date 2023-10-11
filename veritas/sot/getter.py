@@ -81,9 +81,9 @@ class Getter(object):
     }
 
     general_fragments = {
-        'vlans': 'vlans (__general_string__) { id vid name location { name }}',
-        'locations': 'locations (__general_string__) { id name }',
-        'tags': 'tags (__general_string__) { id name content_types { id } }'
+        'vlans': 'vlans (__device_string__) { id vid name location { name }}',
+        'locations': 'locations (__device_string__) { id name }',
+        'tags': 'tags (__device_string__) { id name content_types { id } }'
     }
 
     vlan_fragments = {
@@ -165,7 +165,7 @@ class Getter(object):
                          .normalize(False) \
                          .where()
         
-        all_sites = self._sot.select('sites') \
+        all_sites = self._sot.select('locations') \
                          .using('nb.general') \
                          .normalize(False) \
                          .where()
@@ -335,7 +335,6 @@ class Getter(object):
         response = self._advanced_query(values=values, 
                                         using=using, 
                                         parameter=properties.get('parameter'))
-
         if properties.get('normalize', False):
             return self._normalize_response(properties, response)
         else:
@@ -378,24 +377,23 @@ class Getter(object):
                     else:
                         query_string.append(f'${key0}: String')
             else:
-                if 'primary_ip4' in key:
+                if 'nb.devices' in using and key in ['primary_ip4']:
+                    query_string.append(f'${key}: String')
+                    device_string.append(f'prefix: ${key}')
+                elif key in ['primary_ip4']:
                     query_string.append(f'${key}: String')
                     device_string.append(f'parent: ${key}')
-                elif 'nb.ipam.vlan' in using:
-                    if key in ['vid', 'id']:
-                        query_string.append(f'${key}: [Int]')
-                        device_string.append(f'{key}: ${key}')
-                    else:
-                        query_string.append(f'${key}: [String]')
-                        device_string.append(f'{key}: ${key}')
-                elif 'nb.ipam.prefixe' in using:
+                elif key in ['within_include']:
+                    query_string.append(f'${key}: String')
+                    device_string.append(f'within_include: ${key}')
+                elif key in ['vid','id']:
+                    query_string.append(f'${key}: [Int]')
+                    device_string.append(f'{key}: ${key}')
+                elif key in ['prefix']:
                     query_string.append(f'${key}: String')
                     device_string.append(f'{key}: ${key}')
-                elif 'nb.general' in using:
+                else: # key in ['location', 'name', 'role', 'platform']:
                     query_string.append(f'${key}: [String]')
-                    general_string.append(f'{key}: ${key}')
-                else:
-                    query_string.append(f'${key}:[String]')
                     device_string.append(f'{key}: ${key}')
 
         qstring= ",".join(query_string)
@@ -482,6 +480,10 @@ class Getter(object):
         self._nautobot = self._sot.open_nautobot()
         logging.debug(f'query: {query} variables {query_params}')
         response = self._nautobot.graphql.query(query=query, variables=query_params).json
+        if 'errors' in response:
+            logging.error(f'got error: {response.get("errors")}')
+            response = {}
+
         if 'primary_ip4' in query_params:
             data = dict(response)['data']['ip_addresses']
         elif 'nb.ipam.vlan' in using:
@@ -491,6 +493,5 @@ class Getter(object):
         elif 'nb.general' in using:
             data = dict(response)['data']
         else:
-            data = dict(response)['data']['devices']
+            data = dict(response).get('data',{}).get('devices',{})
         return data
-
