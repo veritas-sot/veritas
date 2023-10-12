@@ -138,16 +138,6 @@ class Onboarding:
         if 'status' in properties:
             properties['status'] = {'name': properties['status']}
 
-        # now all virtual interfaces must be added
-        # thereafter physical interfaces
-        virtual_interfaces = []
-        physical_interfaces = []
-        for interface in self._interfaces:
-            if 'port-channel' in interface['name'].lower():
-                virtual_interfaces.append(interface)
-            else:
-                physical_interfaces.append(interface)
-
         logging.debug(f'properties: {properties}')
 
         # add device to nautobot
@@ -156,6 +146,35 @@ class Onboarding:
         # first of all VLANs are added to the SOT
         if device and len(self._vlans) > 0:
             self._add_vlans_to_nautobot()
+
+        # tagged and untagged vlans need the uuid
+        # for interface in self._interfaces:
+        #     if 'untagged_vlan' in interface:
+        #         untagged_vlan = interface.get('untagged_vlan')
+        #         vid = untagged_vlan.get('vid')
+        #         location = untagged_vlan.get('location')
+        #         uuid = self._sot.get.id(item='vlan', vid=vid, location=location)
+        #         logging.debug(f'setting untagged_vlan {vid}/{location} to {uuid}')
+        #         interface['untagged_vlan'] = uuid
+        #     if 'tagged_vlans' in interface:
+        #         tgd_list = []
+        #         tagged_vlan = interface.get('tagged_vlans',[])
+        #         for vlan in tagged_vlan:
+        #             vid = untagged_vlan.get('vid')
+        #             location = untagged_vlan.get('location')
+        #             uuid = self._sot.get.id(item='vlan', vid=vid, location=location)
+        #             logging.debug(f'adding uuid {uuid} to tagged_vlan {vid}/{location}')
+        #             tgd_list.append(uuid)
+        #         interface['tagged_vlans'] = tgd_list
+        # because some physical interfaces depend on virtual interfaces (eg. port-channel)
+        # we first add the virtzual interfaces and then the physical interfaces
+        virtual_interfaces = []
+        physical_interfaces = []
+        for interface in self._interfaces:
+            if 'port-channel' in interface['name'].lower():
+                virtual_interfaces.append(interface)
+            else:
+                physical_interfaces.append(interface)
 
         # add interface(s) to device
         logging.debug(f'adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
@@ -204,8 +223,19 @@ class Onboarding:
         return None 
 
     def _add_vlans_to_nautobot(self):
+        logging.debug(f'adding VLANs to nautobot')
+        # check if vlan exists
+        new_vlans = []
+        for vlan in self._vlans:
+            vid = vlan.get('vid')
+            location = vlan.get('location')
+            uuid = self._sot.get.id(item='vlan', vid=vid, location=location)
+            if uuid:
+                logging.debug(f'vlan vid={vid} location={location} found in nautobot')
+            else:
+                new_vlans.append(vlan)
         try:
-            return self._nautobot.ipam.vlans.create(self._vlans)
+            return self._nautobot.ipam.vlans.create(new_vlans)
         except Exception as exc:
             logging.error(exc)
         return False
@@ -219,11 +249,22 @@ class Onboarding:
                 interface['device'] = {'id': device.id}
 
         if self._bulk:
-            return self._nautobot.dcim.interfaces.create(interfaces)
+            try:
+                return self._nautobot.dcim.interfaces.create(interfaces)
+            except Exception as exc:
+                if 'The fields device, name must make a unique set' in str(exc):
+                    logging.error(f'one or more interfaces were already in nautobot')
+                return False
         else:
             for interface in interfaces:
-                self._nautobot.dcim.interfaces.create(interface)
-            return True
+                success = True
+                try:
+                    self._nautobot.dcim.interfaces.create(interface)
+                except Exception as exc:
+                    if 'The fields device, name must make a unique set' in str(exc):
+                        logging.error(f'this interfaces is already in nautobot')
+                    success = False
+            return success
 
     def _add_prefix_to_nautobot(self, ipv4):
         """add prefix to nautobot"""

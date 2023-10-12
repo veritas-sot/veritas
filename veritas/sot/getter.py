@@ -108,6 +108,7 @@ class Getter(object):
         cls._nautobot = None
         cls._output_format = None
         cls._use = None
+        cls._cache_dirty = True
         cls._cache = {'locations':{}, 'vlan': {}, 'tag': {}, 'device': {} }
 
         # singleton
@@ -160,7 +161,7 @@ class Getter(object):
                          .normalize(False) \
                          .where()
 
-        all_vlans = self._sot.select('vid, location') \
+        all_vlans = self._sot.select('id, vid, location') \
                          .using('nb.ipam.vlan') \
                          .normalize(False) \
                          .where()
@@ -185,7 +186,7 @@ class Getter(object):
             site = vlan.get('location',{}).get('name') if vlan.get('location') else "global"
             vlan_vid = vlan['vid']
             vlan_id = vlan['id']
-            if site_name not in self._cache['vlan']:
+            if site not in self._cache['vlan']:
                 self._cache['vlan'][site] = {}
             self._cache['vlan'][site][vlan_vid] = vlan_id
 
@@ -195,6 +196,8 @@ class Getter(object):
             if site_name not in self._cache['locations']:
                 self._cache['locations'][site_name] = {}
             self._cache['locations'][site_name] = site_id
+
+        self._cache_dirty = False
 
     def _normalize_response(self, properties, data):
         """ 
@@ -226,23 +229,27 @@ class Getter(object):
         return self._nautobot.graphql.query(query=query, 
                                             variables={'name': properties["device"]}).json
     
-    def id(self, **named):
+    def id(self, *unnamed, **named):
         """
         returns ID of device, site, vlan or tag
         this is used by our onboarding APP
         """
+        if self._cache_dirty:
+            self.load_cache()
+        properties = tools.convert_arguments_to_properties(unnamed, named)
+
         self._nautobot = self._sot.open_nautobot()
-        item = named.get('item')
-        del named['item']
-        logging.debug(f'getting id of {item}; parameter {named}')
+        item = properties.get('item')
+        del properties['item']
+        logging.debug(f'getting id of {item}; parameter {properties}')
 
         if item == "device":
-            hostname = named.get('name')
+            hostname = properties.get('name')
             if hostname in self._cache['device']:
                 logging.debug(f'getting id from cache')
                 return self._cache['device'][hostname]
             try:
-                device = self._nautobot.dcim.devices.get(**named)
+                device = self._nautobot.dcim.devices.get(**properties)
                 if device:
                     logging.debug(f'adding {device.id} to cache')
                     self._cache['device'][hostname] = device.id
@@ -254,12 +261,12 @@ class Getter(object):
                 logging.error(f'got exception {exc}')
                 return None
         elif item == "site":
-            site_name = named.get('name')
+            site_name = properties.get('name')
             if site_name in self._cache['site']:
                 logging.debug(f'getting id from cache')
                 return self._cache['site'][site_name]
             try:
-                site = self._nautobot.dcim.sites.get(**named)
+                site = self._nautobot.dcim.sites.get(**properties)
                 if site:
                     logging.debug(f'adding {site.id} to cache')
                     self._cache['site'][site_name] = site.id
@@ -271,8 +278,8 @@ class Getter(object):
                 logging.error(f'got exception {exc}')
                 return None
         elif item =="vlan":
-            vid = named.get('vid')
-            site_name = named.get('site')
+            vid = properties.get('vid')
+            site_name = properties.get('site')
             id = self._cache['vlan'].get(site_name, {}).get(vid, None)
             if id:
                 logging.debug(f'using cached id')
@@ -287,14 +294,14 @@ class Getter(object):
                     self._cache['vlan'][site_name][vid] = vlan.id
                     return vlan.id
         elif item =="tag":
-            entity = named.get('name')
-            content_types = named.get('content_types')
+            entity = properties.get('name')
+            content_types = properties.get('content_types')
             id = self._cache['tag'].get(content_types, {}).get(entity, None)
             if id:
                 logging.debug(f'using cached id')
                 return id
             try:
-                tag = self._nautobot.extras.tags.get(**named)
+                tag = self._nautobot.extras.tags.get(**properties)
                 if tag:
                     logging.debug(f'adding {content_types} {tag.id} to cache')
                     self._cache['tag'][content_types] = tag.id
