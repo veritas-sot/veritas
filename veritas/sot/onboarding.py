@@ -60,6 +60,8 @@ class Onboarding:
         """add interface to nautobot"""
         logging.debug(f'adding interface to list of interfaces')
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
+        # empty list!!!
+        self._interfaces = []
         if isinstance (properties, list):
             for property in properties:
                 self._interfaces.append(property)
@@ -71,6 +73,8 @@ class Onboarding:
         """add vlans to nautobot"""
         logging.debug(f'adding vlan to list of VLANS')
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
+        # empty list!!!
+        self._vlans = []
         if isinstance (properties, list):
             for property in properties:
                 self._vlans.append(property)
@@ -177,7 +181,7 @@ class Onboarding:
                 physical_interfaces.append(interface)
 
         # add interface(s) to device
-        logging.debug(f'adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
+        logging.debug(f'summary: adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
         if device and len(self._interfaces) > 0:
             v_response = self._add_interfaces_to_nautobot(device, virtual_interfaces)
             p_response = self._add_interfaces_to_nautobot(device, physical_interfaces)
@@ -193,8 +197,11 @@ class Onboarding:
                         nb_interface = self._nautobot.dcim.interfaces.get(
                             device_id=device.id,
                             name=interface.get('name'))
-                        assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
-                        logging.debug(f'assigned IPv4 {ipv4} on device {device} / nb_interface')
+                        if nb_interface:
+                            assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
+                            logging.debug(f'assigned IPv4 {ipv4} on device {device} / nb_interface')
+                        else:
+                            logging.error(f'could not get interface {device.name}/{interface.get("name")}')
         
         # mark primary interface
 
@@ -242,18 +249,20 @@ class Onboarding:
 
     def _add_interfaces_to_nautobot(self, device, interfaces):
         """add interfaces to nautobot"""
-        logging.debug(f'adding {len(interfaces)} interfaces to device {device}')
-
+        logging.debug(f'now adding {len(interfaces)} interfaces to device {device}')
         for interface in interfaces:
             if not 'device' in interface:
                 interface['device'] = {'id': device.id}
-
+            if 'lag' in interface:
+                interface['lag']['device'] = device.id
         if self._bulk:
             try:
                 return self._nautobot.dcim.interfaces.create(interfaces)
             except Exception as exc:
                 if 'The fields device, name must make a unique set' in str(exc):
                     logging.error(f'one or more interfaces were already in nautobot')
+                else:
+                    logging.error(f'got exception: {exc}')
                 return False
         else:
             for interface in interfaces:
