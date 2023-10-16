@@ -151,31 +151,10 @@ class Onboarding:
         if device and len(self._vlans) > 0:
             self._add_vlans_to_nautobot()
 
-        # tagged and untagged vlans need the uuid
-        # for interface in self._interfaces:
-        #     if 'untagged_vlan' in interface:
-        #         untagged_vlan = interface.get('untagged_vlan')
-        #         vid = untagged_vlan.get('vid')
-        #         location = untagged_vlan.get('location')
-        #         uuid = self._sot.get.id(item='vlan', vid=vid, location=location)
-        #         logging.debug(f'setting untagged_vlan {vid}/{location} to {uuid}')
-        #         interface['untagged_vlan'] = uuid
-        #     if 'tagged_vlans' in interface:
-        #         tgd_list = []
-        #         tagged_vlan = interface.get('tagged_vlans',[])
-        #         for vlan in tagged_vlan:
-        #             vid = untagged_vlan.get('vid')
-        #             location = untagged_vlan.get('location')
-        #             uuid = self._sot.get.id(item='vlan', vid=vid, location=location)
-        #             logging.debug(f'adding uuid {uuid} to tagged_vlan {vid}/{location}')
-        #             tgd_list.append(uuid)
-        #         interface['tagged_vlans'] = tgd_list
-        # because some physical interfaces depend on virtual interfaces (eg. port-channel)
-        # we first add the virtzual interfaces and then the physical interfaces
         virtual_interfaces = []
         physical_interfaces = []
         for interface in self._interfaces:
-            if 'port-channel' in interface['name'].lower():
+            if interface and 'port-channel' in interface['name'].lower():
                 virtual_interfaces.append(interface)
             else:
                 physical_interfaces.append(interface)
@@ -203,8 +182,6 @@ class Onboarding:
                         else:
                             logging.error(f'could not get interface {device.name}/{interface.get("name")}')
         
-        # mark primary interface
-
         return device
 
     # ---------- methods ----------
@@ -214,7 +191,7 @@ class Onboarding:
         
         try:
             device_name = device_properties.get('name')
-            logging.error(f'adding device {device_name} to SOT')
+            logging.info(f'adding device {device_name} to SOT')
             device = self._nautobot.dcim.devices.create(device_properties)
             if device is None:
                 logging.error(f'could not add device {device_name} to SOT')
