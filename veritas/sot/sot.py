@@ -8,6 +8,7 @@ from . import ipam
 from . import getter
 from . import selection
 from . import onboarding
+from . import device as dvc
 from . import importer
 from . import auth
 #from . import analyzer
@@ -81,6 +82,9 @@ class Sot:
             if self.__job is None:
                 self.__job = job.Job(self)
             return self.__job
+
+    def device(self, device):
+        return dvc.Device(self, device)
 
     def get_token(self):
         return self._sot_config['nautobot_token']
