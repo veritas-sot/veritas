@@ -257,8 +257,12 @@ class Devicemanagement:
         else:
             facts["fqdn"] = facts.get("hostname")
 
+        # hostnames and fqdn are always lower case
+        facts['fqdn'] = facts['fqdn'].lower()
+        facts['hostname'] = facts['hostname'].lower()
+
         logging.debug("processed %s to get facts of device" % files)
-        # print(json.dumps(facts, indent=4))
+        #print(json.dumps(facts, indent=4))
 
         return facts
 
