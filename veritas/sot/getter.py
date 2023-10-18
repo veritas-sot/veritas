@@ -371,17 +371,22 @@ class Getter(object):
         logging.debug(f'using={using} query_params={query_params} query_values={query_values} normalize={normalize}')
 
         for key,value in dict(query_params).items():
-            logging.debug(f'key {key} value {value}')
             key0 = key.split('__')[0]
+            logging.debug(f'key {key} value {value} (key0={key0})')
             query_params[key0] = value
             if key0 in ['vid']:
                 query_params[key0] = int(value)
             if key.startswith('cf_'):
-                    device_string.append(f'{key}: ${key0}')
                     # if we use a lookup we have to use a list of strings
-                    if '__' in key:
+                    if '__list' in key:
+                        key = key.replace('__list','')
+                        device_string.append(f'{key}: ${key0}')
+                        query_string.append(f'${key}: [String]')
+                    elif '__' in key:
+                        device_string.append(f'{key}: ${key0}')
                         query_string.append(f'${key0}: [String]')
                     else:
+                        device_string.append(f'{key}: ${key0}')
                         query_string.append(f'${key0}: String')
             else:
                 if 'nb.devices' in using and key in ['primary_ip4']:
@@ -399,7 +404,7 @@ class Getter(object):
                 elif key in ['prefix']:
                     query_string.append(f'${key}: String')
                     device_string.append(f'{key}: ${key}')
-                else: # key in ['location', 'name', 'role', 'platform']:
+                else:
                     query_string.append(f'${key}: [String]')
                     device_string.append(f'{key}: ${key}')
 
