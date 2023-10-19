@@ -129,19 +129,6 @@ class Onboarding:
     def add_device(self, *unnamed, **named):
         """add device to nautobot"""
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        
-        """ we have to modify some attributes like device_type and role"""
-        if 'device_type' in properties:
-            properties['device_type'] = {'model': properties['device_type']}
-        if 'role' in properties:
-            properties['role'] = {'name': properties['role']}
-        if 'manufacturer' in properties:
-            properties['manufacturer'] = {'name': properties['manufacturer']}
-        if 'platform' in properties:
-            properties['platform'] = {'name': properties['platform']}
-        if 'status' in properties:
-            properties['status'] = {'name': properties['status']}
-
         logging.debug(f'properties: {properties}')
 
         # add device to nautobot

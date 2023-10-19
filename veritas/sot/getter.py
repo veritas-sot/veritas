@@ -150,6 +150,30 @@ class Getter(object):
 
     # -----===== user command =====-----
 
+    def device(self, name):
+        """returns device"""
+        self._nautobot = self._sot.open_nautobot()
+        return self._nautobot.dcim.devices.get(name=name)
+
+    def interface(self, *unnamed, **named):
+        """returns interface of device"""
+        properties = tools.convert_arguments_to_properties(unnamed, named)
+
+        device = properties.get('device')
+        device_id = properties.get('device_id')
+        interface_name = properties.get('name')
+
+        self._nautobot = self._sot.open_nautobot()
+
+        if device_id:
+            logging.debug(f'getting Interface {interface_name} of {device_id}')
+            return self._nautobot.dcim.interfaces.get(device_id=device_id, 
+                                                      name=interface_name)
+        else:
+            logging.debug(f'getting Interface {interface_name} of {device}')
+            return self._nautobot.dcim.interfaces.get(device={'name': device}, 
+                                                      name=interface_name)
+
     def use(self, use):
         # use another pattern instead of name__ie when query devices
         self._use = use
