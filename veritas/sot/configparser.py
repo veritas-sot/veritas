@@ -74,13 +74,13 @@ class Configparser(object):
         self._output_format = format
         return self
 
-    def template(self, *unnamed, **named):
-        properties = tools.convert_arguments_to_properties(unnamed, named)
-        if 'file' in properties:
-            self._template_filename = properties.get('file')
-        if 'template' in properties:
-            self._template = properties.get('template')
-        return self
+    # def template(self, *unnamed, **named):
+    #     properties = tools.convert_arguments_to_properties(unnamed, named)
+    #     if 'file' in properties:
+    #         self._template_filename = properties.get('file')
+    #     if 'template' in properties:
+    #         self._template = properties.get('template')
+    #     return self
 
     def parse(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
