@@ -171,6 +171,49 @@ class Onboarding:
         
         return device
 
+    def add_interfaces(self, *unnamed, **named):
+        """add interfaces to nautobot"""
+        properties = tools.convert_arguments_to_properties(*unnamed, **named)
+
+        v_response = p_response = prefix = assign = True
+
+        # get device object
+        device = properties.get('device')
+        interfaces = properties.get('interfaces')
+
+        virtual_interfaces = []
+        physical_interfaces = []
+        for interface in interfaces:
+            if interface and 'port-channel' in interface['name'].lower():
+                virtual_interfaces.append(interface)
+            else:
+                physical_interfaces.append(interface)
+
+        # add interface(s) to device
+        logging.debug(f'summary: adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
+        if device and len(interfaces) > 0:
+            v_response = self._add_interfaces_to_nautobot(device, virtual_interfaces)
+            p_response = self._add_interfaces_to_nautobot(device, physical_interfaces)
+            for interface in interfaces:
+                ipv4 = interface.get('ipv4')
+                if ipv4:
+                    logging.debug(f'found IPv4 {ipv4} on device {device}/{interface.get("name")}')
+                    if self._add_prefix:
+                        prefix = self._add_prefix_to_nautobot()
+
+                    ip_address = self._add_ipv4_to_nautbot(device, ipv4)
+                    if self._assign_ip:
+                        nb_interface = self._nautobot.dcim.interfaces.get(
+                            device_id=device.id,
+                            name=interface.get('name'))
+                        if nb_interface:
+                            assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
+                            logging.debug(f'assigned IPv4 {ipv4} on device {device} / nb_interface')
+                        else:
+                            logging.error(f'could not get interface {device.name}/{interface.get("name")}')
+        
+        return v_response and p_response and prefix and assign
+
     # ---------- methods ----------
 
     def _add_device_to_nautobot(self, device_properties):

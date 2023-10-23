@@ -174,6 +174,22 @@ class Getter(object):
             return self._nautobot.dcim.interfaces.get(device={'name': device}, 
                                                       name=interface_name)
 
+    def interfaces(self, *unnamed, **named):
+        """returns ALL interfaces of device"""
+        properties = tools.convert_arguments_to_properties(unnamed, named)
+
+        device = properties.get('device')
+        device_id = properties.get('device_id')
+
+        self._nautobot = self._sot.open_nautobot()
+
+        if device_id:
+            logging.debug(f'getting ALL Interface of {device_id}')
+            return self._nautobot.dcim.interfaces.filter(device_id=device_id)
+        else:
+            logging.debug(f'getting ALL Interface of {device}')
+            return self._nautobot.dcim.interfaces.filter(device=device)
+
     def use(self, use):
         # use another pattern instead of name__ie when query devices
         self._use = use
