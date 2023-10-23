@@ -1,3 +1,4 @@
+import importlib.machinery
 import logging
 import os
 import json
@@ -11,7 +12,6 @@ from . import onboarding
 from . import device as dvc
 from . import importer
 from . import auth
-#from . import analyzer
 from . import configparser
 from . import updater
 from . import rest
@@ -33,7 +33,6 @@ class Sot:
         self.__importer = None
         self.__auth = None
         self._nautobot = None
-#        self.__analyzer = None
         self.__configparser = None
         self.__updater = None
         self.__job = None
@@ -70,10 +69,6 @@ class Sot:
             if self.__auth is None:
                 self.__auth = auth.Auth(self)
             return self.__auth
-        # if item == "analyzer":
-        #     if self.__analyzer is None:
-        #         self.__analyzer = analyzer.Analyzer(self)
-        #     return self.__analyzer
         if item == "updater":
             if self.__updater is None:
                 self.__updater = updater.Updater(self)
@@ -82,6 +77,11 @@ class Sot:
             if self.__job is None:
                 self.__job = job.Job(self)
             return self.__job
+
+    def registry(self, module, path=None):
+        if not path:
+            path = f'{self.BASEDIR}/{module}.py'
+        return importlib.machinery.SourceFileLoader(module,path).load_module()
 
     def device(self, device):
         return dvc.Device(self, device)
