@@ -4,7 +4,7 @@ import json
 import yaml
 import glob
 import re
-from ..tools import tools
+from veritas.tools import tools
 from collections import defaultdict
 from pybatfish.client.session import Session
 from pybatfish.question.question import load_questions
@@ -12,58 +12,33 @@ from pybatfish.question.question import load_questions
 
 class Analyzer(object):
 
-    def __new__(cls, sot):
-        cls._instance = None
-        cls._sot = None
-        cls._device = None
-        cls._bf = None
-        cls._network = None
-        cls._snapshot = None
-        cls._my_config = {}
+    def __init__(self, sot=None, device_name=None):
+        if not sot or not device_name:
+            logging.error('sot and device are mandatory')
+            return None
 
-        # singleton
-        if cls._instance is None:
-            logging.debug(f'Creating ANALYZER object')
-            cls._instance = super(Analyzer, cls).__new__(cls)
-            cls._sot = sot
-            cls._sot_config = sot.get_config()
-            filename = "%s/%s" % (
-                os.path.abspath(os.path.dirname(__file__)),
-                cls._sot_config['analyzer'].get('config') 
-            )
-            with open(filename) as f:
-                cls._my_config = yaml.safe_load(f.read())
+        logging.debug(f'Creating ANALYZER object')
+        self._sot = sot
+        self._device = device_name
+        self._bf = None
+        self._network = None
+        self._snapshot = None
+        self._analyzer_config = {}
 
-            # how to connect to batfish
-            cls._bf_address = cls._my_config['batfish'].get('bf_address')
-            # the directory where the configs are stored
-            cls._snapshot_path = cls._my_config['batfish'].get('snapshot')
-
-            logging.debug(f'setting bf_address: {cls._bf_address} snapshot_apth: {cls._snapshot_path}')
-        return cls._instance
-
-    def inf_defaultdict(self):
-        return defaultdict(self.inf_defaultdict)
-
-    def device(self, devicename):
-        self._device = devicename
-        return self
-    
-    def network(self, network):
-        self._network = network
-        return self
-    
-    def snapshot(self, snapshot):
-        self._snapshot = snapshot
-        return self
-
-    def _get_config(self):
-        src_dir = self._my_config['configs'].get('devices')
-        filename = "%s/%s" % (src_dir, self._device)
+        self._sot_config = sot.get_config()
+        filename = "%s/%s" % (
+            os.path.abspath(os.path.dirname(__file__)),
+            self._sot_config['analyzer'].get('config') 
+        )
         with open(filename) as f:
-            return f.read()
-    
-    def init(self):
+            self._analyzer_config = yaml.safe_load(f.read())
+
+        # how to connect to batfish
+        self._bf_address = self._analyzer_config['batfish'].get('bf_address')
+        # the directory where the configs are stored
+        self._snapshot_path = self._analyzer_config['batfish'].get('snapshot')
+
+        logging.debug(f'setting bf_address: {self._bf_address} snapshot_apth: {self._snapshot_path}')        
         logging.debug('Setting host to connect')
         self._bf = Session(host=self._bf_address)
         if self._network:
@@ -78,8 +53,25 @@ class Analyzer(object):
         logging.getLogger("pybatfish").setLevel(logging.INFO)
 
         load_questions()
-        return self
 
+    def inf_defaultdict(self):
+        return defaultdict(self.inf_defaultdict)
+
+    def device(self, device_name):
+        self._device = devicename
+    
+    def network(self, network):
+        self._network = network
+    
+    def snapshot(self, snapshot):
+        self._snapshot = snapshot
+
+    def _get_config(self):
+        src_dir = self._analyzer_config['configs'].get('devices')
+        filename = "%s/%s" % (src_dir, self._device)
+        with open(filename) as f:
+            return f.read()
+    
     def get_init_issues(self):
        return self._bf.q.initIssues().answer().frame()
 
