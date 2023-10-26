@@ -10,7 +10,7 @@ from ..tools import tools
 class Selection(object):
 
     """
-    SELECT hostname, primary_ip FROM nb.devices WHERE site=site
+    SELECT hostname, primary_ip FROM nb.devices WHERE location=site
     SELECT site.name, site.slug FROM nb.sites
     SELECT hostname, primary_ip FROM nb.devices WHERE primary_ip=192.168.0.0/24
 
@@ -55,9 +55,8 @@ class Selection(object):
 
     def using(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        [self._using.add(x) for x in properties.split(',')]
-        if 'nb.devices' in self._using and 'nb.ipam' in self._using:
-            logging.warning(f'using devices and ipam in one query makes no sense')
+        #[self._using.add(x) for x in properties.split(',')]
+        self._using = properties
         return self
 
     def normalize(self, normalize):
@@ -67,44 +66,23 @@ class Selection(object):
     def where(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         logging.debug(f'query: values {self._values} using: {self._using} where {properties}')
-        if 'nb.devices' in self._using:
-            return self._adv_devices_query(values=self._values, 
-                                           expression=properties, 
-                                           normalize=self._normalize)
+
+        if self._using in ['nb.devices', 'nb.vlan', 'nb.general']:
+            default={'name': ''}
         if 'nb.ipadresses' in self._using:
-            return self._adv_devices_query(values=self._values, 
-                                           expression=properties,
-                                           default={'address': ''},
-                                           normalize=self._normalize)
+            default={'address': ''}
         if 'nb.prefixes' in self._using:
-            return self._general_query(values=self._values, 
-                                       expression=properties,
-                                       default={'prefix': ''},
-                                       normalize=self._normalize)
-        if 'nb.vlan' in self._using:
-            return self._general_query(values=self._values, 
-                                       expression=properties,
-                                       default={'name': ''},
-                                       normalize=self._normalize)
-        if 'nb.general' in self._using:
-            return self._general_query(values=self._values, 
-                                       expression=properties,
-                                       default={'name': ''},
-                                       normalize=self._normalize)
+            default={'prefix': ''}
     
-    def _general_query(self, *unnamed, **named):
-        properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        expression = properties.get('expression')
-        default = properties.get('default')
-        if '=' in expression:
-            key, value = expression.split('=')
+        if '=' in properties:
+            key, value = properties.split('=')
             parameter = {key: value}
         else:
             parameter = default
-        return self._sot.get.query(values=properties.get('values'),
+        return self._sot.get.query(values=self._values,
                                    using=self._using,
                                    parameter=parameter,
-                                   normalize=properties.get('normalize'))
+                                   normalize=self._normalize)
 
     def _adv_devices_query(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
