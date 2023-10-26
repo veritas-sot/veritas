@@ -1,5 +1,5 @@
 ---
-nautobot:
+queries:
   hldm: >
         query ($name: [String], $id: [String], $tag: [String]) {
           devices(name__ie: $name, id: $id, tag: $tag) {
@@ -94,15 +94,243 @@ nautobot:
         }
 
   changes: >
-        query ($gt: [String], $lt: [String], $action: String) {
-            object_changes (time__gt: $gt, time__lt: $lt, action: $action) {
-              time
-              user_name
-              action
-              changed_object_id
-              change_context_detail
-            }
+    query ($gt: [String], $lt: [String], $action: String) {
+        object_changes (time__gt: $gt, time__lt: $lt, action: $action) {
+          time
+          user_name
+          action
+          changed_object_id
+          change_context_detail
         }
+    }
+
+  nb.prefixes: >
+    query Prefix(
+        $get_prefix: Boolean = true, 
+        $get_prefix_length: Boolean = false, 
+        $get_parent: Boolean = false, 
+        $get_ip_adresses: Boolean = false,
+        __query_vars__
+      ) {
+      prefixes (__query_params__) {
+        prefix  @include(if: $get_prefix)
+        prefix_length @include(if: $get_prefix_length)
+        parent @include(if: $get_parent) {
+          prefix
+        }
+        ip_addresses @include(if: $get_ip_adresses) {
+          address
+          primary_ip4_for {
+            name
+          }
+        }
+      }
+    }
+
+  nb.devices: >
+    query Devices(
+      $get_id: Boolean = false, 
+      $get_name: Boolean = false, 
+      $get_hostname: Boolean = true, 
+      $get_interfaces: Boolean = false, 
+      $get_location: Boolean = false, 
+      $get_primary_ip4: Boolean = false, 
+      $get_role: Boolean = false, 
+      $get_device_type: Boolean = false, 
+      $get_platform: Boolean = false, 
+      $get_tags: Boolean = false, 
+      $get_serial: Boolean = false, 
+      $get_config_context: Boolean = false, 
+      $get_cf: Boolean = false, 
+      __query_vars__
+    ) {
+      devices(__query_params__) {
+        id @include(if: $get_id)
+        name @include(if: $get_name)
+        hostname: name @include(if: $get_hostname)
+        primary_ip4 @include(if: $get_primary_ip4) {
+          address
+        }
+        role @include(if: $get_role) {
+          name
+        }
+        device_type @include(if: $get_device_type) {
+          model
+        }
+        platform @include(if: $get_platform) {
+          name
+          manufacturer {
+            name
+          }
+        }
+        tags @include(if: $get_tags) {
+          name
+        }
+        serial @include(if: $get_serial)
+        config_context @include(if: $get_config_context)
+        _custom_field_data @include(if: $get_cf)
+        interfaces @include(if: $get_interfaces) {
+          name
+          description
+          enabled
+          mac_address
+          type
+          mode
+          ip_addresses {
+            address
+            role {
+              id
+            }
+            tags {
+              name
+            }
+          }
+          connected_circuit_termination {
+            circuit {
+              cid
+              commit_rate
+              provider {
+                name
+              }
+            }
+          }
+          tagged_vlans {
+            name
+            vid
+          }
+          untagged_vlan {
+            name
+            vid
+          }
+          cable {
+            termination_a_type
+            status {
+              name
+            }
+            color
+          }
+          tags {
+            name
+          }
+          lag {
+            name
+            enabled
+          }
+          member_interfaces {
+            name
+          }
+        }
+        location @include(if: $get_location) {
+          name
+        }
+      }
+    }
+
+  nb.ipadresses: >
+    query IPadresses( $get_id: Boolean = false, 
+          $get_name: Boolean = false, 
+          $get_hostname: Boolean = true, 
+          $get_interfaces: Boolean = false, 
+          $get_location: Boolean = false, 
+          $get_primary_ip4: Boolean = false, 
+          $get_role: Boolean = false, 
+          $get_device_type: Boolean = false, 
+          $get_platform: Boolean = false, 
+          $get_tags: Boolean = false, 
+          $get_serial: Boolean = false, 
+          $get_config_context: Boolean = false, 
+          $get_cf: Boolean = false,
+          __query_vars__
+          ) {
+      ip_addresses(__query_params__) {
+        primary_ip4_for {
+          id @include(if: $get_id)
+          name @include(if: $get_name)
+          hostname: name @include(if: $get_hostname)
+          primary_ip4 @include(if: $get_primary_ip4) {
+            address
+            role {
+              name
+            }
+            type
+            dns_name
+            _custom_field_data
+          }
+          role @include(if: $get_role) {
+            name
+          }
+          device_type @include(if: $get_device_type) {
+            model
+          }
+          platform @include(if: $get_platform) {
+            name
+            manufacturer {
+              name
+            }
+          }
+          tags @include(if: $get_tags) {
+            name
+          }
+          serial @include(if: $get_serial)
+          config_context @include(if: $get_config_context)
+          _custom_field_data @include(if: $get_cf)
+          interfaces @include(if: $get_interfaces) {
+            name
+            description
+            enabled
+            mac_address
+            type
+            mode
+            ip_addresses {
+              address
+              role {
+                id
+              }
+              tags {
+                name
+              }
+            }
+            connected_circuit_termination {
+              circuit {
+                cid
+                commit_rate
+                provider {
+                  name
+                }
+              }
+            }
+            tagged_vlans {
+              name
+              vid
+            }
+            untagged_vlan {
+              name
+              vid
+            }
+            cable {
+              termination_a_type
+              status {
+                name
+              }
+              color
+            }
+            tags {
+              name
+            }
+            lag {
+              name
+              enabled
+            }
+            member_interfaces {
+              name
+            }
+          }
+          location @include(if: $get_location) {
+            name
+          }
+        }
+      }
+    }
 
 analyzer:
   config: ../conf/sot/analyzer/analyzer.yaml

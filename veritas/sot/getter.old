@@ -352,19 +352,27 @@ class Getter(object):
                 logging.error(f'got exception {exc}')
                 return None
 
-    def changes(self, *unnamed, **named):
-        pass
+    # def changes(self, *unnamed, **named):
+    #     self._nautobot = self._sot.open_nautobot()
 
-    def custom_fields_type(self, *unnamed, **named):
-        properties = tools.convert_arguments_to_properties(unnamed, named)
+    #     properties = tools.convert_arguments_to_properties(unnamed, named)
+    #     if 'start' in properties:
+    #         properties['gt'] = properties.pop('start')
+    #     if 'end' in properties:
+    #         properties['lt'] = properties.pop('end')
+        
+    #     query = self._sot.get_config().get('queries',{}).get('hldm')
+    #     changes = self.query(query=query, query_params=properties)
 
-        response = {}
-
-        self._nautobot = self._sot.open_nautobot()
-        cf_types = self._nautobot.extras.custom_fields.all()
-        for t in cf_types:
-            response[t.display] = {'type': str(t.type)}
-        return response
+    #     if 'context_pattern' in properties:
+    #         data = []
+    #         search = properties.get('context_pattern','')
+    #         for change in changes['data'].get('object_changes'):
+    #             if search in change.get('change_context_detail'):
+    #                 data.append(change)
+    #         return data
+    #     else:
+    #         return changes['data'].get('object_changes')
 
     def query(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
@@ -380,81 +388,159 @@ class Getter(object):
             return response
 
     def _advanced_query(self, *unnamed, **named):
-        """execute query and returns data"""
+        """
+        advanced query
+        we build a query by the parameter the user wants to have eg
+        devices = sot.get.adv_query(values=['primary_ip4','site', 'interfaces'],
+                                    parameter={'name': 'devicename', 'site': 'mysite'}) or
+        devices = sot.get.adv_query(values=['custom_fields'],
+                                    parameter={'cf_myfield': 'my_value'})
+        """
 
-        self._nautobot = self._sot.open_nautobot()
-
-        query_final_vars = []
-        query_final_params = []
-        cf_fields_types = None
+        query_string = []
+        device_string = []
+        ipam_string = []
+        general_string = []
 
         properties = tools.convert_arguments_to_properties(unnamed, named)
-        query_where = properties.get('parameter',{})
-        query_select = properties.get('values',{})
+        query_params = properties.get('parameter',{})
+        query_values = properties.get('values',{})
         normalize = properties.get('normalize', False)
         using = properties.get('using', 'nb.devices')
 
-        if isinstance(using, set):
-            if len(using) == 1:
-                using = list(using)[0]
+        logging.debug(f'using={using} query_params={query_params} query_values={query_values} normalize={normalize}')
+
+        for key,value in dict(query_params).items():
+            key0 = key.split('__')[0]
+            logging.debug(f'key {key} value {value} (key0={key0})')
+            query_params[key0] = value
+            if key0 in ['vid']:
+                query_params[key0] = int(value)
+            if key.startswith('cf_'):
+                    # if we use a lookup we have to use a list of strings
+                    if '__list' in key:
+                        key = key.replace('__list','')
+                        device_string.append(f'{key}: ${key0}')
+                        query_string.append(f'${key}: [String]')
+                    elif '__' in key:
+                        device_string.append(f'{key}: ${key0}')
+                        query_string.append(f'${key0}: [String]')
+                    else:
+                        device_string.append(f'{key}: ${key0}')
+                        query_string.append(f'${key0}: String')
             else:
-                logging.critical(f'multiple using {using_list} NOT IMPLEMNTED YET')
-                pass # todo
-
-        query = self._sot.get_config().get('queries',{}).get(using)
-
-        # query_where are vars the user filters on (WHERE clause)
-        for where in dict(query_where):
-            # custom fields are a special case
-            # we do NOT know what custom fields are part of the SOT
-            if where.startswith('cf_'):
-                if not cf_fields_types:
-                    cf_fields_types = self.get.custom_fields_type()
-                # SELECT custom fields
-                query_where['get_cf'] = True
-                cf_type = "String"
-                if where.replace('cf_','') in cf_fields_types:
-                    c = cf_fields_types[p.replace('cf_','')]['type']
-                cf_type = "String" if c == "Text" else "List"
-                if cf_type == "String":
-                    query_final_vars.append(f'${where}: String')
+                if 'nb.devices' in using and key in ['primary_ip4']:
+                    query_string.append(f'${key}: String')
+                    device_string.append(f'prefix: ${key}')
+                elif key in ['primary_ip4']:
+                    query_string.append(f'${key}: String')
+                    device_string.append(f'parent: ${key}')
+                elif key in ['within_include']:
+                    query_string.append(f'${key}: String')
+                    device_string.append(f'within_include: ${key}')
+                elif key in ['vid','id']:
+                    query_string.append(f'${key}: [Int]')
+                    device_string.append(f'{key}: ${key}')
+                elif key in ['prefix']:
+                    query_string.append(f'${key}: String')
+                    device_string.append(f'{key}: ${key}')
                 else:
-                    query_final_vars.append(f'${where}: [String]')
-            else:
-                if where in ['within_include']:
-                    query_final_vars.append(f'${where}: String')
+                    query_string.append(f'${key}: [String]')
+                    device_string.append(f'{key}: ${key}')
+
+        qstring= ",".join(query_string)
+        dstring = ",".join(device_string)
+        gstring = ",".join(general_string)
+
+        if 'primary_ip4' in query_params:
+            query = """query (__query_string__) {
+                     ip_addresses(__device_string__) {
+                       primary_ip4_for {
+                         primary_ip4 {
+                           address
+                         }
+                         __values__
+                       }
+                     }
+                   }
+                """
+        elif 'nb.ipam.prefix' in using:
+            query = """query (__query_string__) {
+                        prefixes(__device_string__) {
+                        __values__
+                        }
+                    }
+                    """
+        elif 'nb.ipam.vlan' in using:
+            query = """query (__query_string__) {
+                        vlans(__device_string__) {
+                        __values__
+                        }
+                    }
+                    """
+        elif 'nb.general' in using:
+            query = """query (__query_string__) {
+                        __values_with_param__
+                    }
+                    """
+        else:
+            query = """query (__query_string__) {
+                        devices(__device_string__) {
+                        __values__
+                        }
+                    }
+                    """
+
+        # parse values and replace placehoder
+        if 'nb.general' in using:
+            for value in properties.get('values',[]):
+                value = value.replace(' ','')
+                fragment = self.general_fragments.get(value)
+                if fragment is None:
+                    logging.error(f'unknown query value "{value}"')
                 else:
-                    query_final_vars.append(f'${where}: [String]')
-            # add parameter to query parameters
-            query_final_params.append(f'{where}: ${where}')
+                    query = query.replace('__values_with_param__',f'{fragment} __values_with_param__')
+        elif 'nb.ipam.vlan' in using:
+            for value in properties.get('values',[]):
+                value = value.replace(' ','')
+                fragment = self.vlan_fragments.get(value)
+                if fragment is None:
+                    logging.error(f'unknown query value "{value}"')
+                else:
+                    query = query.replace('__values__',f'{fragment} __values__')
+        else:
+            for value in properties.get('values',[]):
+                value = value.replace(' ','')
+                if value.startswith('cf_') and 'custom_fields' not in query :
+                    fragment = self.query_fragments.get('custom_fields')
+                else:
+                    fragment = self.query_fragments.get(value)
+                if fragment is None:
+                    logging.error(f'unknown query value "{value}"')
+                else:
+                    query = query.replace('__values__',f'{fragment} __values__')
+    
+        # replace all of our string now
+        query = query.replace('__query_string__', qstring) \
+                     .replace('__device_string__', dstring) \
+                     .replace('__general_string__', gstring)
 
-        # convert string ["val1","val2",....,"valn"] to list
-        for key,val in dict(query_where).items():
-            if '[' in val and ']' in val:
-                # remove [,],' and "
-                val = val.replace('[','').replace(']','').replace('"','').replace('\'','')
-                query_where[key] = val.split(',')
+        # at last remove __values__ we are done
+        query = query.replace('__values__','')
+        query = query.replace('__values_with_param__','')
 
-        str_final_vars = ",".join(query_final_vars)
-        str_final_params = ",".join(query_final_params)
-        query = query.replace('__query_vars__', str_final_vars).replace('__query_params__',str_final_params)
-
-        # query_select are values the user has SELECTed
-        for v in query_select:
-            query_where[f'get_{v}'] = True
-
-        logging.debug(f'query_select={query_select} using={using} query_where={query_where} normalize={normalize}')
-        response = self._nautobot.graphql.query(query=query, variables=query_where).json
-
+        self._nautobot = self._sot.open_nautobot()
+        logging.debug(f'query: {query} variables {query_params}')
+        response = self._nautobot.graphql.query(query=query, variables=query_params).json
         if 'errors' in response:
             logging.error(f'got error: {response.get("errors")}')
             response = {}
 
-        if 'nb.ipadresses' in using:
+        if 'primary_ip4' in query_params:
             data = dict(response)['data']['ip_addresses']
-        elif 'nb.vlan' in using:
+        elif 'nb.ipam.vlan' in using:
             data = dict(response)['data']['vlans']
-        elif 'nb.prefixes' in using:
+        elif 'nb.ipam.prefix' in using:
             data = dict(response)['data']['prefixes']
         elif 'nb.general' in using:
             data = dict(response)['data']

@@ -68,13 +68,20 @@ class Selection(object):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         logging.debug(f'query: values {self._values} using: {self._using} where {properties}')
         if 'nb.devices' in self._using:
-            return self._adv_devices_query(values=self._values, expression=properties, normalize=self._normalize)
-        if 'nb.ipam.prefix' in self._using:
+            return self._adv_devices_query(values=self._values, 
+                                           expression=properties, 
+                                           normalize=self._normalize)
+        if 'nb.ipadresses' in self._using:
+            return self._adv_devices_query(values=self._values, 
+                                           expression=properties,
+                                           default={'address': ''},
+                                           normalize=self._normalize)
+        if 'nb.prefixes' in self._using:
             return self._general_query(values=self._values, 
                                        expression=properties,
                                        default={'prefix': ''},
                                        normalize=self._normalize)
-        if 'nb.ipam.vlan' in self._using:
+        if 'nb.vlan' in self._using:
             return self._general_query(values=self._values, 
                                        expression=properties,
                                        default={'name': ''},
@@ -223,7 +230,7 @@ class Selection(object):
         if len(gpql_parameter) > 0:
             logging.debug(f'list of gpql parameter is {gpql_parameter}')
             # todo:
-            # check if parameter like site is found twice
+            # check if parameter like location is found twice
             for gpql in gpql_parameter:
                 logging.debug(f'getting devices using parameter {gpql}')
                 sot_devices = self._get_devicelist_by_gpql_parameter(gpql, values)

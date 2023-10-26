@@ -13,7 +13,7 @@ from ..tools import tools
 
 
 class Onboarding:
-    """Class to onboard devices to nautobot
+    """Class to onboard devices including interfaces and tags to nautobot
 
     Attributes
     ----------
@@ -33,6 +33,11 @@ class Onboarding:
                 .interface(list_of_interface_properties) \
                 .primary_interface(name_of_interface) \
                 .add(device_properties)
+    
+    sot.onboarding \
+                .add_prefix(False) \
+                .assign_ip(True) \
+                .add_interfaces(device=device, interfaces=interfaces)
     """
 
     def __init__(self, sot):
@@ -124,7 +129,7 @@ class Onboarding:
         self._bulk = bulk
         return self
 
-    # ---------- commands ----------
+    # ---------- user commands ----------
 
     def add_device(self, *unnamed, **named):
         """add device to nautobot"""
@@ -214,7 +219,7 @@ class Onboarding:
         
         return v_response and p_response and prefix and assign
 
-    # ---------- methods ----------
+    # ---------- internal methods ----------
 
     def _add_device_to_nautobot(self, device_properties):
         """add device to nautobot"""
@@ -275,7 +280,8 @@ class Onboarding:
             for interface in interfaces:
                 success = True
                 try:
-                    self._nautobot.dcim.interfaces.create(interface)
+                    # if one request failes we return False
+                    success = success and self._nautobot.dcim.interfaces.create(interface)
                 except Exception as exc:
                     if 'The fields device, name must make a unique set' in str(exc):
                         logging.error(f'this interfaces is already in nautobot')
