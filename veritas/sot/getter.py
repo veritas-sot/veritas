@@ -8,96 +8,6 @@ from ..tools import tools
 
 class Getter(object):
 
-    query_fragments = {
-        # devices
-        'id': 'id',
-        'hostname': 'hostname: name',
-        'primary_ip4': 'primary_ip4 {address}',
-        'location': 'location {name}',
-        'role': 'role {name}',
-        'device_type': 'device_type {model}',
-        'platform': 'platform {name manufacturer {name}}',
-        'tags': 'tags {name}',
-        'serial': 'serial',
-        'config_context': 'config_context',
-        'custom_fields': 'custom_field_data: _custom_field_data',
-        'interfaces': 'interfaces {\
-              name\
-              description\
-              enabled\
-              mac_address\
-              type\
-              mode\
-              ip_addresses {\
-                address\
-                role { \
-                    id \
-                } \
-                tags {\
-                  name\
-                }\
-              }\
-              connected_circuit_termination {\
-                circuit {\
-                  cid\
-                  commit_rate\
-                  provider {\
-                    name\
-                  }\
-                }\
-              }\
-              tagged_vlans {\
-                name\
-                vid\
-              }\
-              untagged_vlan {\
-                name\
-                vid\
-              }\
-              cable {\
-                termination_a_type\
-                status {\
-                  name\
-                }\
-                color\
-              }\
-              tags {\
-                name\
-              }\
-              lag {\
-                name\
-                enabled\
-              }\
-              member_interfaces {\
-                name\
-              }\
-            }',
-        # general
-        'vlans': 'vlans {vid name}',
-        # prefixes
-        'prefix': 'prefix',
-        'description': 'description',
-        'vlan': 'vlan {vid name}',
-    }
-
-    general_fragments = {
-        'vlans': 'vlans (__device_string__) { id vid name location { name }}',
-        'locations': 'locations (__device_string__) { id name }',
-        'tags': 'tags (__device_string__) { id name content_types { id } }'
-    }
-
-    vlan_fragments = {
-        'id': 'id',
-        'vid': 'vid',
-        'name': 'name',
-        'description': 'description',
-        'status': 'status {id name}',
-        'tags': 'tags { name }',
-        'role': 'role { name }',
-        'location': 'location { name location_type { name } }',
-        'vlan_group': 'vlan_group{ name }'
-    }
-
     scope_id_to_name = {'3': 'dcim.device',
                         '4': 'dcim.interface',
                         '11': 'ipam.prefix'}
@@ -368,18 +278,21 @@ class Getter(object):
 
     def query(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
+
+        select = properties.get('values') if 'values' in properties else properties.get('select',['hostname'])
         using = properties.get('using','nb.devices')
-        values = properties.get('values',['hostname'])
-        logging.debug(f'query using {using} ... with parameter {values} ... normalize {properties.get("normalize", False)}')
-        response = self._advanced_query(values=values, 
-                                        using=using, 
-                                        parameter=properties.get('parameter'))
+        where = properties.get('parameter') if 'parameter' in properties else properties.get('where')
+    
+        logging.debug(f'query select {select} using {using} where {where} {properties.get("normalize", False)}')
+        response = self._execute_query(select=select, 
+                                       using=using, 
+                                       where=where)
         if properties.get('normalize', False):
             return self._normalize_response(properties, response)
         else:
             return response
 
-    def _advanced_query(self, *unnamed, **named):
+    def _execute_query(self, *unnamed, **named):
         """execute query and returns data"""
 
         self._nautobot = self._sot.open_nautobot()
@@ -389,17 +302,10 @@ class Getter(object):
         cf_fields_types = None
 
         properties = tools.convert_arguments_to_properties(unnamed, named)
-        query_where = properties.get('parameter',{})
-        query_select = properties.get('values',{})
-        normalize = properties.get('normalize', False)
+        query_select = properties.get('select',{})
         using = properties.get('using', 'nb.devices')
-
-        if isinstance(using, set):
-            if len(using) == 1:
-                using = list(using)[0]
-            else:
-                logging.critical(f'multiple using {using_list} NOT IMPLEMNTED YET')
-                pass # todo
+        query_where = properties.get('where',{})
+        normalize = properties.get('normalize', False)
 
         query = self._sot.get_config().get('queries',{}).get(using)
 
@@ -421,7 +327,7 @@ class Getter(object):
                 else:
                     query_final_vars.append(f'${where}: [String]')
             else:
-                if where in ['within_include']:
+                if where in ['within_include', 'changed_object_type']:
                     query_final_vars.append(f'${where}: String')
                 else:
                     query_final_vars.append(f'${where}: [String]')
@@ -438,18 +344,16 @@ class Getter(object):
         str_final_vars = ",".join(query_final_vars)
         str_final_params = ",".join(query_final_params)
         query = query.replace('__query_vars__', str_final_vars).replace('__query_params__',str_final_params)
-
+        # logging.debug(query)
         # query_select are values the user has SELECTed
         for v in query_select:
             query_where[f'get_{v}'] = True
 
         logging.debug(f'query_select={query_select} using={using} query_where={query_where} normalize={normalize}')
         response = self._nautobot.graphql.query(query=query, variables=query_where).json
-
         if 'errors' in response:
             logging.error(f'got error: {response.get("errors")}')
             response = {}
-
         if 'nb.ipadresses' in using:
             data = dict(response)['data']['ip_addresses']
         elif 'nb.vlan' in using:
@@ -458,6 +362,8 @@ class Getter(object):
             data = dict(response)['data']['prefixes']
         elif 'nb.general' in using:
             data = dict(response)['data']
+        elif 'nb.changes' in using:
+            data = dict(response)['data']['object_changes']
         else:
             data = dict(response).get('data',{}).get('devices',{})
         return data

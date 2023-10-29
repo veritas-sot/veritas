@@ -93,20 +93,29 @@ queries:
           }
         }
 
-  changes: >
-    query ($gt: [String], $lt: [String], $action: String) {
-        object_changes (time__gt: $gt, time__lt: $lt, action: $action) {
-          time
-          user_name
-          action
-          changed_object_id
-          change_context_detail
+  nb.changes: >
+    query Changes(
+          $get_time: Boolean = false,
+          $get_user_name: Boolean = false,
+          $get_action: Boolean = false,
+          $get_changed_object_id: Boolean = false,
+          $get_change_context_detail: Boolean = false,
+          $get_object_type: Boolean = false,
+          __query_vars__
+        ) {
+        object_changes (__query_params__) {
+          time @include(if: $get_time)
+          user_name @include(if: $get_user_name)
+          action @include(if: $get_action)
+          changed_object_id @include(if: $get_changed_object_id)
+          changed_object_type @include(if: $get_object_type) { model }
+          change_context_detail @include(if: $get_change_context_detail)
         }
     }
 
   nb.prefixes: >
     query Prefix(
-        $get_prefix: Boolean = true, 
+        $get_prefix: Boolean = false,
         $get_prefix_length: Boolean = false, 
         $get_parent: Boolean = false, 
         $get_ip_adresses: Boolean = false,

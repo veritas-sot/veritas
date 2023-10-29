@@ -67,28 +67,27 @@ class Selection(object):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         logging.debug(f'query: values {self._values} using: {self._using} where {properties}')
 
-        if self._using in ['nb.devices', 'nb.vlan', 'nb.general']:
-            default={'name': ''}
-        if 'nb.ipadresses' in self._using:
-            default={'address': ''}
-        if 'nb.prefixes' in self._using:
-            default={'prefix': ''}
-    
-        if '=' in properties:
+        # check if we need some additional data
+        if 'nb.changes' in properties:
+            """eg 'where' looks like 'nb.changes.time__gt=2023-10-25T13:00:00'"""
+            properties = properties.replace('nb.changes.','')
             key, value = properties.split('=')
-            parameter = {key: value}
+            where = {key: value}
+            logging.debug(f'get chnages from SOT ... where {where}')
+            list_of_id = self._sot.get.query(values=["changed_object_id", "change_context_detail", "action"],
+                                             using="nb.changes",
+                                             where=where,
+                                             normalize=False)
+            print(list_of_id)
+            # nb = self._sot.open_nautobot()
+            # changes = nb.extras.object_changes.filter(time__gt="2023-10-25T13:00:00")
+            # for change in changes:
+            #     print(change.object_type)
         else:
-            parameter = default
-        return self._sot.get.query(values=self._values,
-                                   using=self._using,
-                                   parameter=parameter,
-                                   normalize=self._normalize)
+            return self._parse_query(properties)
 
-    def _adv_devices_query(self, *unnamed, **named):
-        properties = tools.convert_arguments_to_properties(*unnamed, **named)
-
-        expression = properties.get('expression')
-        values = properties.get('values',['hostname'])
+    def _parse_query(self, expression):
+        values = self._values
         logging.debug(f'expression {expression} ({len(expression)})')
         # lets check if we have a logical operation
         found_logical_expression = False
@@ -106,7 +105,7 @@ class Selection(object):
             # we need the hostname in values
             if 'hostname' not in values:
                 values.append('hostname')
-            devices = self._exp_parser(res, values)
+            devices = self._parse_condition(res, values)
             response = []
             # now we have a list of all devices the user wants to have
             # we merge all devives and return the (normalized) response
@@ -122,22 +121,39 @@ class Selection(object):
                     self.query_cache[device] = raw[0]
                     response.append(raw[0])
         else:
-            # found no logical expression to parse .... return simple advanced query
-            if '=' in expression:
-                key, value = expression.split('=')
-                parameter = {key: value}
-            else:
-                parameter = {'name': ''}
-            logging.debug(f'simple query using={self._using} values={values} parameter={parameter}')
-            response = self._sot.get.query(values=values, using=self._using, parameter=parameter)
+            response = self._simple_query(expression)
         
         # do we have to normalize the data
-        if properties.get('normalize', False):
+        if self._normalize:
             return self._normalize_response(properties, response)
         else:
             return response
 
-    def _exp_parser(self, cond, values):
+    def _simple_query(self, properties):
+        """returns data of simple queries
+           This is a query that runs independently, so no additional data is required.
+        """
+
+        if 'nb.ipadresses' in self._using:
+            default={'address': ''}
+        elif 'nb.changes' in self._using:
+            default={'time__gt': ''}
+        elif 'nb.prefixes' in self._using:
+            default={'prefix': ''}
+        else:
+            default={'name': ''}
+
+        if '=' in properties:
+            key, value = properties.split('=')
+            where = {key: value}
+        else:
+            where = default
+        return self._sot.get.query(values=self._values,
+                                   using=self._using,
+                                   parameter=where,
+                                   normalize=self._normalize)
+
+    def _parse_condition(self, cond, values):
         if isinstance(cond, Condition):
             logging.debug(f'final condition {cond} data: {cond.data}')
             return cond.data
@@ -159,7 +175,7 @@ class Selection(object):
         # we get one (or more) "final condition". Those final conditions are used to buidl 
         # our query and get a list of devices
         for l in cond.conditions:
-            response = self._exp_parser(l, values)
+            response = self._parse_condition(l, values)
             if isinstance(response, list):
                 got_list_as_result = True
                 # we have a list of devices!
@@ -196,7 +212,7 @@ class Selection(object):
         devices = set()
         gpql_parameter = []
         for l in cond.conditions:
-            response = self._exp_parser(l, values)
+            response = self._parse_condition(l, values)
             if isinstance(response, list):
                 # we have a list of devices!
                 logging.debug(f'got a list of devices {response} (or)')
@@ -206,14 +222,25 @@ class Selection(object):
                 gpql_parameter.append({response.get('parameter'): response.get('value')})
 
         if len(gpql_parameter) > 0:
+            condition_list = {}
             logging.debug(f'list of gpql parameter is {gpql_parameter}')
-            # todo:
             # check if parameter like location is found twice
             for gpql in gpql_parameter:
-                logging.debug(f'getting devices using parameter {gpql}')
-                sot_devices = self._get_devicelist_by_gpql_parameter(gpql, values)
-                for x in sot_devices:
-                    devices.add(x)
+                for key, value in gpql.items():
+                    if key not in condition_list:
+                        condition_list[key] = []
+                    condition_list[key].append(value)
+            if len(condition_list) == 1:
+                # ALL or conditions have the same key
+                logging.debug(f'simplify OR condition to list {condition_list}')
+                sot_devices = self._get_devicelist_by_gpql_parameter(condition_list, values)
+            else:
+                # we cannot merge the OR conditions to one list!
+                for gpql in gpql_parameter:
+                    logging.debug(f'getting devices using parameter {gpql}')
+                    sot_devices = self._get_devicelist_by_gpql_parameter(gpql, values)
+            for x in sot_devices:
+                devices.add(x)
 
             logging.debug(f'or {gpql_parameter} results in {devices}')
         return list(devices)
