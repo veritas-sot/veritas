@@ -172,11 +172,15 @@ class Getter(object):
             response.append(values)
         return response
         
-    # def hldm(self, *unnamed, **named):
-    #     properties = tools.convert_arguments_to_properties(unnamed, named)
-    #     query = self._sot.get_config().get('queries',{}).get('hldm')
-    #     return self._nautobot.graphql.query(query=query, 
-    #                                         variables={'name': properties["device"]}).json
+    def hldm(self, *unnamed, **named):
+        properties = tools.convert_arguments_to_properties(unnamed, named)
+        
+        device = properties.get('device')
+        select = ['id','hostname','interfaces','location','primary_ip4','role',
+                  'device_type','platform','tags','serial','config_context','cf']
+        using = 'nb.devices'
+        where = {'name': device}
+        return self.query(select=select, using=using, where=where)
     
     def id(self, *unnamed, **named):
         """
@@ -327,8 +331,10 @@ class Getter(object):
                 else:
                     query_final_vars.append(f'${where}: [String]')
             else:
-                if where in ['within_include', 'changed_object_type']:
+                if where in ['within_include', 'changed_object_type', 'prefix']:
                     query_final_vars.append(f'${where}: String')
+                elif where in ['vid']:
+                    query_final_vars.append(f'${where}: [Int]')
                 else:
                     query_final_vars.append(f'${where}: [String]')
             # add parameter to query parameters

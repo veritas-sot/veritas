@@ -1,98 +1,6 @@
 ---
 queries:
-  hldm: >
-        query ($name: [String], $id: [String], $tag: [String]) {
-          devices(name__ie: $name, id: $id, tag: $tag) {
-            hostname: name
-            serial
-            primary_ip4 {
-              address
-            }
-            status {
-              slug
-              name
-            }
-            config_context
-            custom_fields: _custom_field_data
-            tags {
-              slug
-              name
-            }
-            device_role {
-              slug
-              name
-            }
-            device_type {
-              slug
-              model
-            }
-            platform {
-              slug
-              name
-              manufacturer {
-                slug
-                name
-              }
-              napalm_driver
-            }
-            site {
-              slug
-              name
-            }
-            interfaces {
-              name
-              description
-              enabled
-              mac_address
-              type
-              mode
-              ip_addresses {
-                address
-                role
-                tags {
-                  slug
-                  name
-                }
-              }
-              connected_circuit_termination {
-                circuit {
-                  cid
-                  commit_rate
-                  provider {
-                    name
-                  }
-                }
-              }
-              tagged_vlans {
-                name
-                vid
-              }
-              untagged_vlan {
-                name
-                vid
-              }
-              cable {
-                termination_a_type
-                status {
-                  name
-                }
-                color
-              }
-              tags {
-                slug
-                name
-              }
-              lag {
-                name
-                enabled
-              }
-              member_interfaces {
-                name
-              }
-            }
-          }
-        }
-
+  
   nb.changes: >
     query Changes(
           $get_time: Boolean = false,
@@ -115,14 +23,17 @@ queries:
 
   nb.prefixes: >
     query Prefix(
+        $get_id: Boolean = false,
         $get_prefix: Boolean = false,
         $get_prefix_length: Boolean = false, 
         $get_parent: Boolean = false, 
         $get_ip_adresses: Boolean = false,
+        $get_tenant: Boolean = false,
         __query_vars__
       ) {
       prefixes (__query_params__) {
-        prefix  @include(if: $get_prefix)
+        id @include(if: $get_id)
+        prefix @include(if: $get_prefix)
         prefix_length @include(if: $get_prefix_length)
         parent @include(if: $get_parent) {
           prefix
@@ -132,6 +43,12 @@ queries:
           primary_ip4_for {
             name
           }
+        }
+        tenant @include(if: $get_tenant) {
+            name
+            tenant_group {
+              name
+            }
         }
       }
     }
@@ -150,7 +67,10 @@ queries:
       $get_tags: Boolean = false, 
       $get_serial: Boolean = false, 
       $get_config_context: Boolean = false, 
-      $get_cf: Boolean = false, 
+      $get_cf: Boolean = false,
+      $get_custom_field_data: Boolean = false,
+      $get__custom_field_data: Boolean = false,
+      $get_tenant: Boolean = false,
       __query_vars__
     ) {
       devices(__query_params__) {
@@ -174,10 +94,23 @@ queries:
         }
         tags @include(if: $get_tags) {
           name
+          content_types {
+            id
+            app_label
+            model
+          }
+        }
+        tenant @include(if: $get_tenant) {
+            name
+            tenant_group {
+              name
+            }
         }
         serial @include(if: $get_serial)
         config_context @include(if: $get_config_context)
         _custom_field_data @include(if: $get_cf)
+        _custom_field_data @include(if: $get__custom_field_data)
+        custom_field_data : _custom_field_data @include(if: $get_custom_field_data)
         interfaces @include(if: $get_interfaces) {
           name
           description
@@ -192,6 +125,11 @@ queries:
             }
             tags {
               name
+              content_types {
+                id
+                app_label
+                model
+              }
             }
           }
           connected_circuit_termination {
@@ -220,6 +158,11 @@ queries:
           }
           tags {
             name
+            content_types {
+              id
+              app_label
+              model
+            }
           }
           lag {
             name
@@ -249,6 +192,7 @@ queries:
           $get_serial: Boolean = false, 
           $get_config_context: Boolean = false, 
           $get_cf: Boolean = false,
+          $get_tenant: Boolean = false,
           __query_vars__
           ) {
       ip_addresses(__query_params__) {
@@ -279,6 +223,17 @@ queries:
           }
           tags @include(if: $get_tags) {
             name
+            content_types {
+              id
+              app_label
+              model
+            }
+          }
+          tenant @include(if: $get_tenant) {
+            name
+            tenant_group {
+              name
+            }
           }
           serial @include(if: $get_serial)
           config_context @include(if: $get_config_context)
@@ -297,6 +252,11 @@ queries:
               }
               tags {
                 name
+                content_types {
+                  id
+                  app_label
+                  model
+                }
               }
             }
             connected_circuit_termination {
@@ -325,6 +285,11 @@ queries:
             }
             tags {
               name
+              content_types {
+                id
+                app_label
+                model
+              }
             }
             lag {
               name
@@ -337,6 +302,65 @@ queries:
           location @include(if: $get_location) {
             name
           }
+        }
+      }
+    }
+
+  nb.vlans: >
+    query Vlans(
+        $get_id: Boolean = false,
+        $get_vid: Boolean = false, 
+        $get_name: Boolean = false, 
+        $get_status: Boolean = false,
+        $get_role: Boolean = false,
+        $get_description: Boolean = false,
+        $get_location: Boolean = false,
+        $get_vlan_group: Boolean = false,
+        $get_tenant: Boolean = false,
+        $get_tags: Boolean = false,
+        __query_vars__
+      ) {
+      vlans(__query_params__) {
+        id @include(if: $get_id)
+        vid @include(if: $get_vid)
+        name @include(if: $get_name)
+        status @include(if: $get_status) {
+          name
+        }
+        role @include(if: $get_role) {name}
+        description @include(if: $get_description)
+        location @include(if: $get_location) {name}
+        vlan_group @include(if: $get_vlan_group) {name}
+        tenant @include(if: $get_tenant) {
+            name
+            tenant_group {
+              name
+            }
+        }
+        tags @include(if: $get_tags) {
+          name
+          content_types {
+            id
+            app_label
+            model
+          }
+        }
+      }
+    }
+
+  nb.general: >
+    query General(
+      $get_locations: Boolean = false,
+      $get_tags: Boolean = false,
+      __query_vars__
+    ) {
+      locations(__query_params__) @include(if: $get_locations) {name}
+      tags(__query_params__) @include(if: $get_tags) {
+        name
+        content_types {
+          id
+          app_label
+          model
         }
       }
     }
