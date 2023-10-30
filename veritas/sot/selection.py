@@ -234,13 +234,17 @@ class Selection(object):
                 # ALL or conditions have the same key
                 logging.debug(f'simplify OR condition to list {condition_list}')
                 sot_devices = self._get_devicelist_by_gpql_parameter(condition_list, values)
+                for x in sot_devices:
+                    devices.add(x)
             else:
                 # we cannot merge the OR conditions to one list!
+                logging.debug(f'we have to use multiple queries to get the data ')
                 for gpql in gpql_parameter:
                     logging.debug(f'getting devices using parameter {gpql}')
                     sot_devices = self._get_devicelist_by_gpql_parameter(gpql, values)
-            for x in sot_devices:
-                devices.add(x)
+                    logging.debug(f'got {len(sot_devices)} entries back')
+                    for x in sot_devices:
+                        devices.add(x)
 
             logging.debug(f'or {gpql_parameter} results in {devices}')
         return list(devices)

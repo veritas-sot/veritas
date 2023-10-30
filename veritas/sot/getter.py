@@ -324,7 +324,7 @@ class Getter(object):
                 query_where['get_cf'] = True
                 cf_type = "String"
                 if where.replace('cf_','') in cf_fields_types:
-                    c = cf_fields_types[p.replace('cf_','')]['type']
+                    c = cf_fields_types[where.replace('cf_','')]['type']
                 cf_type = "String" if c == "Text" else "List"
                 if cf_type == "String":
                     query_final_vars.append(f'${where}: String')
@@ -342,10 +342,13 @@ class Getter(object):
 
         # convert string ["val1","val2",....,"valn"] to list
         for key,val in dict(query_where).items():
-            if '[' in val and ']' in val:
-                # remove [,],' and "
-                val = val.replace('[','').replace(']','').replace('"','').replace('\'','')
-                query_where[key] = val.split(',')
+            # because we are setting query_where['get_cf'] = True (above)
+            # we have to check if val is not a bool
+            if not isinstance(val, bool):
+                if '[' in val and ']' in val:
+                    # remove [,],' and "
+                    val = val.replace('[','').replace(']','').replace('"','').replace('\'','')
+                    query_where[key] = val.split(',')
 
         str_final_vars = ",".join(query_final_vars)
         str_final_params = ",".join(query_final_params)
