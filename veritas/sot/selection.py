@@ -41,15 +41,15 @@ class Selection(object):
 
         # save values
         if len(values) > 1:
-            cls._values = []
+            cls._select = []
             for v in values:
-                cls._values.append(v)
+                cls._select.append(v)
         else:
             for v in values:
                 if isinstance(v, str):
-                    cls._values = v.replace(' ','').split(',')
+                    cls._select = v.replace(' ','').split(',')
                 elif isinstance(v, list):
-                    cls._values = v
+                    cls._select = v
 
         return cls._instance
 
@@ -65,7 +65,7 @@ class Selection(object):
 
     def where(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        logging.debug(f'query: values {self._values} using: {self._using} where {properties}')
+        logging.debug(f'query: values {self._select} using: {self._using} where {properties}')
 
         # check if we need some additional data
         if 'nb.changes' in properties:
@@ -87,7 +87,7 @@ class Selection(object):
             return self._parse_query(properties)
 
     def _parse_query(self, expression):
-        values = self._values
+        values = self._select
         logging.debug(f'expression {expression} ({len(expression)})')
         # lets check if we have a logical operation
         found_logical_expression = False
@@ -125,7 +125,7 @@ class Selection(object):
         
         # do we have to normalize the data
         if self._normalize:
-            return self._normalize_response(properties, response)
+            return self._normalize_response(values, response)
         else:
             return response
 
@@ -148,7 +148,7 @@ class Selection(object):
             where = {key: value}
         else:
             where = default
-        return self._sot.get.query(values=self._values,
+        return self._sot.get.query(values=self._select,
                                    using=self._using,
                                    parameter=where,
                                    normalize=self._normalize)
@@ -256,17 +256,21 @@ class Selection(object):
         response = []
         for item in data:
             values = {}
-            for key in properties.get('values',[]):
+            for key in properties:
                 if 'primary_ip4_for' in item:
                     if key.startswith('cf_'):
                         k = key.replace('cf_','')
-                        values[k] = item.get('primary_ip4_for', {}).get('custom_field_data',{}).get(k)
+                        primary_ip4_for = item.get('primary_ip4_for', {})
+                        if len(primary_ip4_for) > 0:
+                            values[k] = primary_ip4_for[0].get('custom_field_data',{}).get(k)
                     else:
-                        values[key] = item.get('primary_ip4_for', {})[0].get(key)
+                        primary_ip4_for = item.get('primary_ip4_for', {})
+                        if len(primary_ip4_for) > 0:
+                            values[key] = primary_ip4_for[0].get(key)
                 else:
                     if key.startswith('cf_'):
                         k = key.replace('cf_','')
-                        values[k] = item.get('custom_field_data',{}).get(k)
+                        values[k] = item.get('custom_field_data',{})[0].get(k)
                     else:
                         values[key] = item.get(key)
             response.append(values)

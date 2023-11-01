@@ -160,13 +160,17 @@ class Getter(object):
                 if 'primary_ip4_for' in item:
                     if key.startswith('cf_'):
                         k = key.replace('cf_','')
-                        values[k] = item.get('primary_ip4_for', {}).get('custom_field_data',{}).get(k)
+                        primary_ip4_for = item.get('primary_ip4_for', {})
+                        if len(primary_ip4_for) > 0:
+                            values[k] = primary_ip4_for[0].get('custom_field_data',{}).get(k)
                     else:
-                        values[key] = item.get('primary_ip4_for', {}).get(key)
+                        primary_ip4_for = item.get('primary_ip4_for', {})
+                        if len(primary_ip4_for) > 0:
+                            values[key] = primary_ip4_for[0].get(key)
                 else:
                     if key.startswith('cf_'):
                         k = key.replace('cf_','')
-                        values[k] = item.get('custom_field_data',{}).get(k)
+                        values[k] = item.get('custom_field_data',{})[0].get(k)
                     else:
                         values[key] = item.get(key)
             response.append(values)
