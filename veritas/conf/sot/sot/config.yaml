@@ -26,9 +26,16 @@ queries:
         $get_id: Boolean = false,
         $get_prefix: Boolean = false,
         $get_prefix_length: Boolean = false, 
-        $get_parent: Boolean = false, 
+        $get_parent: Boolean = false,
+        $get_type: Boolean = false,
+        $get_description: Boolean = false,
+        $get_location: Boolean = false,
         $get_ip_adresses: Boolean = false,
+        $get_tags: Boolean = false, 
         $get_tenant: Boolean = false,
+        $get_cf: Boolean = false,
+        $get_custom_field_data: Boolean = false,
+        $get__custom_field_data: Boolean = false,
         __query_vars__
       ) {
       prefixes (__query_params__) {
@@ -38,10 +45,26 @@ queries:
         parent @include(if: $get_parent) {
           prefix
         }
+        description @include(if: $get_description)
+        type @include(if: $get_type)
+        location @include(if: $get_location) {
+          name
+        }
+        _custom_field_data @include(if: $get_cf)
+        _custom_field_data @include(if: $get__custom_field_data)
+        custom_field_data : _custom_field_data @include(if: $get_custom_field_data)
         ip_addresses @include(if: $get_ip_adresses) {
           address
           primary_ip4_for {
             name
+          }
+        }
+        tags @include(if: $get_tags) {
+          name
+          content_types {
+            id
+            app_label
+            model
           }
         }
         tenant @include(if: $get_tenant) {

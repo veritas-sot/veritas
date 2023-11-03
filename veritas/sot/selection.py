@@ -151,7 +151,8 @@ class Selection(object):
         return self._sot.get.query(values=self._select,
                                    using=self._using,
                                    parameter=where,
-                                   normalize=self._normalize)
+                                   # normalize is done by select
+                                   normalize=False)
 
     def _parse_condition(self, cond, values):
         if isinstance(cond, Condition):
@@ -270,7 +271,12 @@ class Selection(object):
                 else:
                     if key.startswith('cf_'):
                         k = key.replace('cf_','')
-                        values[k] = item.get('custom_field_data',{})[0].get(k)
+                        if 'custom_field_data' in item:
+                            values[k] = item.get('custom_field_data',{}).get(k)
+                        elif '_custom_field_data' in item:
+                            values[k] = item.get('_custom_field_data',{}).get(k)
+                        else:
+                            logging.error('no custom field data (select)')
                     else:
                         values[key] = item.get(key)
             response.append(values)

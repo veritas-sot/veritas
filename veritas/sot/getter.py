@@ -170,7 +170,12 @@ class Getter(object):
                 else:
                     if key.startswith('cf_'):
                         k = key.replace('cf_','')
-                        values[k] = item.get('custom_field_data',{})[0].get(k)
+                        if 'custom_field_data' in item:
+                            values[k] = item.get('custom_field_data',{}).get(k)
+                        elif '_custom_field_data' in item:
+                            values[k] = item.get('_custom_field_data',{}).get(k)
+                        else:
+                            logging.error('no custom field data (getter)')
                     else:
                         values[key] = item.get(key)
             response.append(values)
@@ -360,10 +365,14 @@ class Getter(object):
         # logging.debug(query)
         # query_select are values the user has SELECTed
         for v in query_select:
-            query_where[f'get_{v}'] = True
+            if v.startswith('cf_'):
+                query_where['get__custom_field_data'] = True
+            else:
+                query_where[f'get_{v}'] = True
 
         logging.debug(f'query_select={query_select} using={using} query_where={query_where} normalize={normalize}')
         response = self._nautobot.graphql.query(query=query, variables=query_where).json
+        # logging.debug(response)
         if 'errors' in response:
             logging.error(f'got error: {response.get("errors")}')
             response = {}
