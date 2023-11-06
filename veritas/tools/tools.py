@@ -3,6 +3,7 @@ import logging
 import yaml
 import os
 import getpass
+import pytricia
 
 
 def get_value_from_dict(dictionary, keys):
@@ -128,3 +129,25 @@ def set_value(mydict, paths, value):
         mydict = mydict.setdefault(part, {})
     # at last write value to dict
     mydict[parts[-1]] = value
+
+def get_prefix_path(prefixe, ip):
+    """return prefix path"""
+    prefix_path = []
+    pyt = pytricia.PyTricia()
+
+    # build pytricia tree
+    for prefix_ip in prefixe:
+        pyt.insert(prefix_ip, prefix_ip)
+
+    try:
+        prefix = pyt.get(ip)
+    except Exception as exc:
+        logging.error(f'prefix not found; using 0.0.0.0/0')
+        prefix = "0.0.0.0/0"
+    prefix_path.append(prefix)
+
+    parent = pyt.parent(prefix)
+    while (parent):
+        prefix_path.append(parent)
+        parent = pyt.parent(parent)
+    return prefix_path[::-1]
