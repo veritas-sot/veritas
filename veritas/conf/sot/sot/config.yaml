@@ -202,36 +202,38 @@ queries:
     }
 
   nb.ipadresses: >
-    query IPadresses( $get_id: Boolean = false, 
+    query IPadresses( 
+          $get_id: Boolean = false, 
+          $get_address: Boolean = false,
+          $get_type: Boolean = false,
           $get_name: Boolean = false, 
           $get_hostname: Boolean = true, 
           $get_interfaces: Boolean = false, 
           $get_location: Boolean = false, 
-          $get_primary_ip4: Boolean = false, 
+          $get_primary_ip4_for: Boolean = false, 
           $get_role: Boolean = false, 
           $get_device_type: Boolean = false, 
           $get_platform: Boolean = false, 
-          $get_tags: Boolean = false, 
-          $get_serial: Boolean = false, 
+          $get_tags: Boolean = false,
+          $get_serial: Boolean = false,
+          $get_status:  Boolean = false,
           $get_config_context: Boolean = false, 
           $get_cf: Boolean = false,
           $get_tenant: Boolean = false,
           __query_vars__
           ) {
       ip_addresses(__query_params__) {
-        primary_ip4_for {
+        id @include(if: $get_id)
+        address @include(if: $get_address)
+        type @include(if: $get_type)
+        tags @include(if: $get_tags) {
+          id
+          name
+        }
+        primary_ip4_for @include(if: $get_primary_ip4_for) {
           id @include(if: $get_id)
           name @include(if: $get_name)
           hostname: name @include(if: $get_hostname)
-          primary_ip4 @include(if: $get_primary_ip4) {
-            address
-            role {
-              name
-            }
-            type
-            dns_name
-            _custom_field_data
-          }
           role @include(if: $get_role) {
             name
           }
@@ -259,10 +261,16 @@ queries:
             }
           }
           serial @include(if: $get_serial)
+          status @include(if: $get_status) {
+            name
+          }
           config_context @include(if: $get_config_context)
           _custom_field_data @include(if: $get_cf)
           interfaces @include(if: $get_interfaces) {
             name
+            device {
+              name
+            }
             description
             enabled
             mac_address

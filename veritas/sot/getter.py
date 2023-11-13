@@ -108,17 +108,14 @@ class Getter(object):
     def load_cache(self):
         all_tags = self._sot.select('tags') \
                          .using('nb.general') \
-                         .normalize(False) \
                          .where()
 
         all_vlans = self._sot.select('id, vid, location') \
                          .using('nb.ipam.vlan') \
-                         .normalize(False) \
                          .where()
         
         all_sites = self._sot.select('locations') \
                          .using('nb.general') \
-                         .normalize(False) \
                          .where()
 
         for tag in all_tags['tags']:
@@ -149,38 +146,6 @@ class Getter(object):
 
         self._cache_dirty = False
 
-    def _normalize_response(self, properties, data):
-        """ 
-        when using the cidr notation we have to use 'primary_ip4_for' to get the values
-        """
-        response = []
-        for item in data:
-            values = {}
-            for key in properties.get('values',[]):
-                if 'primary_ip4_for' in item:
-                    if key.startswith('cf_'):
-                        k = key.replace('cf_','')
-                        primary_ip4_for = item.get('primary_ip4_for', {})
-                        if len(primary_ip4_for) > 0:
-                            values[k] = primary_ip4_for[0].get('custom_field_data',{}).get(k)
-                    else:
-                        primary_ip4_for = item.get('primary_ip4_for', {})
-                        if len(primary_ip4_for) > 0:
-                            values[key] = primary_ip4_for[0].get(key)
-                else:
-                    if key.startswith('cf_'):
-                        k = key.replace('cf_','')
-                        if 'custom_field_data' in item:
-                            values[k] = item.get('custom_field_data',{}).get(k)
-                        elif '_custom_field_data' in item:
-                            values[k] = item.get('_custom_field_data',{}).get(k)
-                        else:
-                            logging.error('no custom field data (getter)')
-                    else:
-                        values[key] = item.get(key)
-            response.append(values)
-        return response
-        
     def hldm(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
         
@@ -292,18 +257,13 @@ class Getter(object):
     def query(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
 
-        select = properties.get('values') if 'values' in properties else properties.get('select',['hostname'])
+        select = properties.get('select') if 'select' in properties else properties.get('values',['hostname'])
         using = properties.get('using','nb.devices')
-        where = properties.get('parameter') if 'parameter' in properties else properties.get('where')
-    
-        logging.debug(f'query select {select} using {using} where {where} {properties.get("normalize", False)}')
-        response = self._execute_query(select=select, 
-                                       using=using, 
-                                       where=where)
-        if properties.get('normalize', False):
-            return self._normalize_response(properties, response)
-        else:
-            return response
+        where = properties.get('where') if 'where' in properties else properties.get('parameter')
+
+        logging.debug(f'query select {select} using {using} where {where} (query)')
+        response = self._execute_query(select=select, using=using, where=where)
+        return response
 
     def _execute_query(self, *unnamed, **named):
         """execute query and returns data"""
@@ -318,7 +278,6 @@ class Getter(object):
         query_select = properties.get('select',{})
         using = properties.get('using', 'nb.devices')
         query_where = properties.get('where',{})
-        normalize = properties.get('normalize', False)
 
         query = self._sot.get_config().get('queries',{}).get(using)
 
@@ -351,6 +310,12 @@ class Getter(object):
 
         # convert string ["val1","val2",....,"valn"] to list
         for key,val in dict(query_where).items():
+            if isinstance(val, list):
+                if cf_fields_types and cf_fields_types.get(key.replace('cf_',''),{}).get('type') == 'Text':
+                    if len(val) > 1:
+                        logging.erro(f'parameter {key} does not support [String]')
+                    query_where[key] = val[0]
+
             # because we are setting query_where['get_cf'] = True (above)
             # we have to check if val is not a bool
             if not isinstance(val, bool):
@@ -362,7 +327,7 @@ class Getter(object):
         str_final_vars = ",".join(query_final_vars)
         str_final_params = ",".join(query_final_params)
         query = query.replace('__query_vars__', str_final_vars).replace('__query_params__',str_final_params)
-        # logging.debug(query)
+        #logging.debug(query)
         # query_select are values the user has SELECTed
         for v in query_select:
             if v.startswith('cf_'):
@@ -370,9 +335,9 @@ class Getter(object):
             else:
                 query_where[f'get_{v}'] = True
 
-        logging.debug(f'query_select={query_select} using={using} query_where={query_where} normalize={normalize}')
+        logging.debug(f'query_select={query_select} using={using} query_where={query_where} (exc)')
         response = self._nautobot.graphql.query(query=query, variables=query_where).json
-        # logging.debug(response)
+        #logging.debug(response)
         if 'errors' in response:
             logging.error(f'got error: {response.get("errors")}')
             response = {}

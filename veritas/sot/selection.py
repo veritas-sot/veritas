@@ -1,5 +1,7 @@
 import logging
 import json
+import sys
+from anytree import AnyNode,RenderTree, PreOrderIter, PostOrderIter, search
 from functools import reduce
 from boolean_parser import parse as boolean_parser
 from boolean_parser.actions.clause import Condition
@@ -25,42 +27,67 @@ class Selection(object):
     # and then get return the cahced values
     query_cache = {}
 
-    def __new__(cls, sot, *values):
-        cls._instance = None
-        cls._sot = None
-        cls._using = set()
-        cls._where = ""
-        cls._normalize = False
+    def __init__(self, sot, *values):
+        self._sot = sot
+        self._using = set()
 
-        # singleton
-        if cls._instance is None:
-            logging.debug(f'Creating SELECTION object')
-            cls._instance = super(Selection, cls).__new__(cls)
-            # Put any initialization here
-            cls._sot = sot
+        self._normalize = False
+        self._node_id = 0
+        self.__cf_types = None
 
-        # save values
+        # everything we need to join two tables
+        self._join = None
+        self._on = None
+        self._left_table = None
+        self._left_identifier = None
+        self._right_table = None
+        self._right_identifier = None
+
+        # set values
         if len(values) > 1:
-            cls._select = []
+            self._select = []
             for v in values:
-                cls._select.append(v)
+                self._select.append(v)
         else:
             for v in values:
                 if isinstance(v, str):
-                    cls._select = v.replace(' ','').split(',')
+                    self._select = v.replace(' ','').split(',')
                 elif isinstance(v, list):
-                    cls._select = v
-
-        return cls._instance
+                    self._select = v
 
     def using(self, *unnamed, **named):
+        return self.From(unnamed, named)
+
+    def From(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        #[self._using.add(x) for x in properties.split(',')]
-        self._using = properties
+
+        # check if "table as id" was used
+        if ' as ' in properties:
+            s = properties.split(' as ')
+            self._using = properties = s[0]
+            self._left_table = self._using
+            self._left_identifier = s[1]
+        else:
+            self._using = self._left_table = self._left_identifier = properties
         return self
 
-    def normalize(self, normalize):
-        self._normalize = normalize
+    def join(self, *unnamed, **named):
+        properties = tools.convert_arguments_to_properties(*unnamed, **named)
+
+        if ' as ' in properties:
+            s = properties.split(' as ')
+            self._join = properties = s[0]
+            self._right_table = self._join
+            self._right_identifier = s[1]
+        else:
+            self._join = self._right_table = self._right_identifier = properties
+
+        return self
+
+    def on(self, *unnamed, **named):
+        properties = tools.convert_arguments_to_properties(*unnamed, **named)
+
+        self._on = properties
         return self
 
     def where(self, *unnamed, **named):
@@ -68,26 +95,64 @@ class Selection(object):
         logging.debug(f'query: values {self._select} using: {self._using} where {properties}')
 
         # check if we need some additional data
-        if 'nb.changes' in properties:
-            """eg 'where' looks like 'nb.changes.time__gt=2023-10-25T13:00:00'"""
-            properties = properties.replace('nb.changes.','')
-            key, value = properties.split('=')
-            where = {key: value}
-            logging.debug(f'get chnages from SOT ... where {where}')
-            list_of_id = self._sot.get.query(values=["changed_object_id", "change_context_detail", "action"],
-                                             using="nb.changes",
-                                             where=where,
-                                             normalize=False)
-            print(list_of_id)
-            # nb = self._sot.open_nautobot()
-            # changes = nb.extras.object_changes.filter(time__gt="2023-10-25T13:00:00")
-            # for change in changes:
-            #     print(change.object_type)
-        else:
-            return self._parse_query(properties)
+        if self._join:
 
-    def _parse_query(self, expression):
-        values = self._select
+            left_select = set()
+            right_select = set('')
+
+            # check if properties is empty
+            if len(properties) == 0:
+                properties = ''
+
+            # split the on statement
+            join_on = self._on.replace(' ','').split('=')
+            join_left_row = join_on[0].replace(f'{self._left_identifier}.','',1)
+            join_right_row = join_on[1].replace(f'{self._right_identifier}.','',1)
+            # add fields we are joining on
+            # maybe th user wants a subfield; check if . found and use left part
+            left_select.add(join_left_row.split('.')[0])
+            right_select.add(join_right_row.split('.')[0])
+
+            # prepare left select statement
+            left_select.add('id')
+            for c in self._select:
+                if c.startswith(self._left_identifier):
+                    left_select.add(c.replace(f'{self._left_identifier}.',''))
+            # does the same with the right one
+            right_select.add('id')
+            for c in self._select:
+                if c.startswith(self._right_identifier):
+                    right_select.add(c.replace(f'{self._right_identifier}.',''))
+
+            # adjust the where clause (properties)
+            where_splits = properties.replace(' ','').split(',')
+            where_left = []
+            where_right = []
+            for w in where_splits:
+                if w.startswith(self._left_identifier):
+                    where_left.append(w.replace(f'{self._left_identifier}.','',1))
+                if w.startswith(self._right_identifier):
+                    where_right.append(w.replace(f'{self._right_identifier}.','',1))
+
+            logging.debug(f'join detected; left: {self._left_table}/{self._left_identifier}' \
+                f' right: {self._right_table}/{self._right_identifier} using: {self._using}')
+            logging.debug(f'left_select: {left_select} left_where: {where_left}' \
+                f' right_select: {right_select} right_where: {where_right}')
+
+            left_result = self._parse_query(where_left, list(left_select), self._left_table)
+            right_result = self._parse_query(where_right, list(right_select), self._right_table)
+            return self._join_results(left_result, right_result, self._on)
+
+        else:
+            return self._parse_query(properties, self._select, self._using)
+
+    def _refresh_cf_types(self):
+        nb = self._sot.open_nautobot()
+        self.__cf_types = {}
+        for t in nb.extras.custom_fields.all():
+            self.__cf_types[t.display] = {'type': str(t.type)}
+
+    def _parse_query(self, expression, select, using):
         logging.debug(f'expression {expression} ({len(expression)})')
         # lets check if we have a logical operation
         found_logical_expression = False
@@ -102,228 +167,259 @@ class Selection(object):
             logging.debug(f'no logical operation found ... simple call {expression}')
 
         if found_logical_expression:
-            # we need the hostname in values
-            if 'hostname' not in values:
-                values.append('hostname')
-            devices = self._parse_condition(res, values)
-            response = []
-            # now we have a list of all devices the user wants to have
-            # we merge all devives and return the (normalized) response
-            for device in devices:
-                if device in self.query_cache:
-                    response.append(self.query_cache[device])
-                else:
-                    logging.debug(f'host {device} not found in cache')
-                    raw = self._sot.get.query(values=values,
-                                              using=self._using,
-                                              parameter={'name' : device},
-                                              normalize=False)
-                    self.query_cache[device] = raw[0]
-                    response.append(raw[0])
+            self._node_id = 0
+            logical_tree = self._build_logical_tree(res)
+            self._condense_tree(logical_tree)
+            self._query_logical_tree(logical_tree, select, using)
+            response = logical_tree.root.response
         else:
-            response = self._simple_query(expression)
+            response = self._simple_query(expression, select, using)
         
-        # do we have to normalize the data
-        if self._normalize:
-            return self._normalize_response(values, response)
-        else:
-            return response
+        return response
 
-    def _simple_query(self, properties):
+    def _simple_query(self, properties, select, using):
         """returns data of simple queries
            This is a query that runs independently, so no additional data is required.
         """
 
-        if 'nb.ipadresses' in self._using:
+        if 'nb.ipadresses' in using:
             default={'address': ''}
-        elif 'nb.changes' in self._using:
+        elif 'nb.changes' in using:
             default={'time__gt': ''}
-        elif 'nb.prefixes' in self._using:
+        elif 'nb.prefixes' in using:
             default={'prefix': ''}
         else:
             default={'name': ''}
 
-        if '=' in properties:
+        if isinstance(properties, list):
+            if len(properties) == 0:
+                where = default
+            else:
+                for p in properties:
+                    if '=' in p:
+                        key, value = p.split('=')
+                        where = {key: value}
+        elif '=' in properties:
             key, value = properties.split('=')
             where = {key: value}
         else:
             where = default
-        return self._sot.get.query(values=self._select,
-                                   using=self._using,
-                                   parameter=where,
-                                   # normalize is done by select
-                                   normalize=False)
 
-    def _parse_condition(self, cond, values):
-        if isinstance(cond, Condition):
-            logging.debug(f'final condition {cond} data: {cond.data}')
-            return cond.data
-        elif isinstance(cond, BoolAnd):
-            return self._process_and_condition(cond, values)
-        elif isinstance(cond, BoolOr):
-            return self._process_or_condition(cond, values)
-        else:
-            logging.error(f'unknown type {type(cond)} {cond}')
+        return self._sot.get.query(select=select, using=using, where=where)
 
-    def _process_and_condition(self, cond, values):
-        gpql_parameter = {}
-        devices = []
-        sot_devices = []
-        got_list_as_result = False
-        got_parameter = False
+    def _build_logical_tree(self, res):
+        """parse logical expression and build tree"""
 
-        # loop through all conditions. Either we get a list (expression contains (...) or
-        # we get one (or more) "final condition". Those final conditions are used to buidl 
-        # our query and get a list of devices
-        for l in cond.conditions:
-            response = self._parse_condition(l, values)
-            if isinstance(response, list):
-                got_list_as_result = True
-                # we have a list of devices!
-                logging.debug(f'got a list of devices {response} (and)')
-                # merge the two lists together without duplicates
-                devices.extend(x for x in response if x not in devices)
+        id = -1
+        root = None
+        stack = [{'cond': res, 
+                  'parent': None}]
+
+        while (stack):
+            id += 1
+            s = stack.pop()
+            cond = s.get('cond')
+            parent = s.get('parent')
+            node = AnyNode(id=id, parent=parent)
+            # set root of tree
+            if not root:
+                root = node
+            if isinstance(cond, BoolAnd) or isinstance(cond, BoolOr):
+                operator = 'or' if isinstance(cond, BoolOr) else 'and'
+                node.operator = operator
+                node.values = None
+                # node.where = None
+                for c in cond.conditions:
+                    stack.append({'cond': c, 
+                                  'parent': node})
             else:
-                # otherwise we got a string containing our final condition and 
-                # we have to get the list of devices using this parameter
-                gpql_parameter[response.get('parameter')] = response.get('value')
-                got_parameter = True
+                node.values=self._convert_expression(cond.data)
+                node.operator = None
+        return root
 
-        # do we have some graphql parameter to get a list of devices?
-        if len(gpql_parameter) > 0:
-            logging.debug(f'got gpql parameter {gpql_parameter}')
-            sot_devices = self._get_devicelist_by_gpql_parameter(gpql_parameter, values)
-
-        # at last we have to check which hostnames are in our devicelist and in our response
-        if got_list_as_result and got_parameter:
-            logging.debug(f'merging devices {devices} and latest sot_devices {sot_devices}')
-            devicelist = list(reduce(lambda a, b: set(a) & set(b), [devices, sot_devices]))
-        elif got_list_as_result:
-            logging.debug(f'return the list of devices from our sub expression')
-            # we got (one or more) lists of devices and no other request were done
-            devicelist = devices
-        else: 
-            logging.debug(f'return the list of devices using the final conditions(s)')
-            devicelist = sot_devices
-         
-        logging.debug(f'and {gpql_parameter} results in {devicelist}')
-        return devicelist
-
-    def _process_or_condition(self, cond, values):
-        devices = set()
-        gpql_parameter = []
-        for l in cond.conditions:
-            response = self._parse_condition(l, values)
-            if isinstance(response, list):
-                # we have a list of devices!
-                logging.debug(f'got a list of devices {response} (or)')
-                devices.update(response)
-            else:
-                # each final condition is used to get a list of devices
-                gpql_parameter.append({response.get('parameter'): response.get('value')})
-
-        if len(gpql_parameter) > 0:
-            condition_list = {}
-            logging.debug(f'list of gpql parameter is {gpql_parameter}')
-            # check if parameter like location is found twice
-            for gpql in gpql_parameter:
-                for key, value in gpql.items():
-                    if key not in condition_list:
-                        condition_list[key] = []
-                    condition_list[key].append(value)
-            if len(condition_list) == 1:
-                # ALL or conditions have the same key
-                logging.debug(f'simplify OR condition to list {condition_list}')
-                sot_devices = self._get_devicelist_by_gpql_parameter(condition_list, values)
-                for x in sot_devices:
-                    devices.add(x)
-            else:
-                # we cannot merge the OR conditions to one list!
-                logging.debug(f'we have to use multiple queries to get the data ')
-                for gpql in gpql_parameter:
-                    logging.debug(f'getting devices using parameter {gpql}')
-                    sot_devices = self._get_devicelist_by_gpql_parameter(gpql, values)
-                    logging.debug(f'got {len(sot_devices)} entries back')
-                    for x in sot_devices:
-                        devices.add(x)
-
-            logging.debug(f'or {gpql_parameter} results in {devices}')
-        return list(devices)
-
-    def _normalize_response(self, properties, data):
-        """ 
-        when using the cidr notation we have to use 'primary_ip4_for' to get the values
-        """
-        response = []
-        for item in data:
-            values = {}
-            for key in properties:
-                if 'primary_ip4_for' in item:
-                    if key.startswith('cf_'):
-                        k = key.replace('cf_','')
-                        primary_ip4_for = item.get('primary_ip4_for', {})
-                        if len(primary_ip4_for) > 0:
-                            values[k] = primary_ip4_for[0].get('custom_field_data',{}).get(k)
-                    else:
-                        primary_ip4_for = item.get('primary_ip4_for', {})
-                        if len(primary_ip4_for) > 0:
-                            values[key] = primary_ip4_for[0].get(key)
-                else:
-                    if key.startswith('cf_'):
-                        k = key.replace('cf_','')
-                        if 'custom_field_data' in item:
-                            values[k] = item.get('custom_field_data',{}).get(k)
-                        elif '_custom_field_data' in item:
-                            values[k] = item.get('_custom_field_data',{}).get(k)
-                        else:
-                            logging.error('no custom field data (select)')
-                    else:
-                        values[key] = item.get(key)
-            response.append(values)
-        return response
+    def _convert_expression(self, expression):
+        """convert boolean parse condition to dict"""
+        field = expression.get('parameter')
+        operator = expression.get('operator')
+        value = expression.get('value')
         
-    def _get_devicelist_by_gpql_parameter(self, gpql, values):
-
-        gpql_parameter = dict(gpql)
-        sot_response = {}
-        primary_response = {}
-        primary_devices = None
-
-        # get the devices using ALL but the primary_ip of our saved parameter
-        if 'primary_ip4' in gpql_parameter:
-            primary_stmnt = gpql_parameter['primary_ip4']
-            del gpql_parameter['primary_ip4']
-            primary_response = self._sot.get.query(values=values, 
-                                                   parameter={'primary_ip4': primary_stmnt},
-                                                   normalize=False)
-            primary_devices = [ i['primary_ip4_for']['hostname'] for i in primary_response ]
-
-        # if primary_ip was the only parameter gpql_parameter is 0
-        if len(gpql_parameter) > 0:
-            sot_response = self._sot.get.query(values=values, 
-                                               parameter=gpql_parameter,
-                                               normalize=False)
-            
-            # we only need one list but have a list of dicts containing hostnames
-            sot_devices = [ i['hostname'] for i in sot_response ]
-            # now do the AND if we have a primary_ip
-            if primary_devices:
-                devicelist = list(reduce(lambda a, b: set(a) & set(b), [primary_devices, sot_devices]))
-            else:
-                devicelist = sot_devices
+        logging.debug(f'field: {field} operator: {operator} value: {value}')
+        if operator == '!=':
+            return {f'{field}__ne': [value]}
         else:
-            # only primary_ip
-            devicelist = primary_devices
+            # equals
+            return {field: [value]}
 
-        # build cache
-        # we use this cache to get the values later
-        for device in sot_response:
-            if device.get('hostname') in devicelist:
-                self.query_cache[device.get('hostname')] = device
+    def _condense_tree(self, root):
+        """condense tree - single run"""
 
-        for device in devicelist:
-            for pr in primary_response:
-                if device == pr.get('primary_ip4_for',{}).get('hostname'):
-                    self.query_cache[device] = pr['primary_ip4_for']
-   
-        return devicelist
+        # we need the custom field types
+        # Text fields do not support [String] but Select fields do
+        # so cf_net=net or cf_net=anothernet cannot be merged to one query
+        self._refresh_cf_types()
+
+        run = 1
+        logging.debug(f'condense run {run}')
+        while self._condense_single_run(root):
+            run += 1
+            logging.debug(f'condense run {run}')
+
+    def _condense_single_run(self, root):
+        nodes = search.findall(root, filter_=lambda node: node.values == None)
+        something_condensed = False
+        for node in nodes:
+            if node.operator == 'or':
+                if all(c.is_leaf for c in node.children):
+                    logging.debug(f'id: {node.id} operator "or" and all childrens are leafs')
+                    merged = {}
+                    cf_type_supported = True
+                    for c in node.children:
+                        for key, value in c.values.items():
+                            if_type_supported = True
+                            if key.startswith('cf_'):
+                                # check if cf_type supports merging
+                                if self.__cf_types.get(key.replace('cf_','')).get('type','') == 'Text':
+                                    cf_type_supported = False
+                        if c.values:
+                             merged = self._merge_dicts(merged, c.values)
+                    if len(merged) == 1 and cf_type_supported:
+                        logging.debug(f'leafs can be merged to {merged}')
+                        f = list(merged.keys())
+                        node.values = self._merge_dicts(node.values, merged) if node.values else merged
+                        node.children = []
+                        something_condensed = True
+            elif node.operator == 'and':
+                if all(c.is_leaf for c in node.children):
+                    logging.debug(f'id: {node.id} operator "and" and all childrens are leafs')
+                    merged = {}
+                    for c in node.children:
+                        merged = self._merge_dicts(merged, c.values) if c.values else merged
+                    f = list(merged.keys())
+                    node.values = self._merge_dicts(node.values, merged) if node.values else merged
+                    node.children = []
+                    node.operator = None
+                    something_condensed = True
+
+        return something_condensed
+
+    def _merge_dicts(self, dict1, dict2):
+        keys = set(dict1).union(dict2)
+        no = []
+        return dict((k, dict1.get(k, no) + dict2.get(k, no)) for k in keys)
+
+    def _query_logical_tree(self, logical_tree, select, using):
+        """query each leaf and merge data (depending on or and and)"""
+        if 'id' not in select:
+            select += ['id']
+        # walk through tree; childrens first than the other nodes
+        for node in PostOrderIter(logical_tree):
+            logging.debug(f'id: {node.id} operator: {node.operator} leaf: {node.is_leaf}')
+            if node.is_leaf:
+                node.response = self._sot.get.query(select=select,
+                                                    using=using,
+                                                    where=node.values)
+            else:
+                # have a look at the children and do the logical operation
+                if node.operator == 'or':
+                    lists = []
+                    for c in node.children:
+                        lists.append(c.response)
+                    node.response = self._get_items(lists)
+                elif node.operator == 'and':
+                    lists = []
+                    for c in node.children:
+                        lists.append(c.response)
+                    node.response = self._get_items_with_equal_id(lists)
+
+    def _get_items_with_equal_id(self, all_items):
+        """returns a list of items with equal id"""
+
+        # 1. case: we have only one sublist; return result
+        if len(all_items) == 1:
+            return all_items[0]
+        
+        result = []
+        logging.debug(f'merging {len(all_items)} lists to one')
+        # 2. we have multiple lists
+        # get first list and check which item is in this list and all other lists
+        anchor = all_items[0]
+        # others is a list of lists
+        others = all_items[1:]
+        for ac in anchor:
+            id = ac.get('id', -1)
+            for o in others[0]:
+                if o.get('id') == id:
+                    result.append(o)
+        return result
+    
+    def _get_items(self, all_items):
+        """returns all values without duplicates"""
+
+         # 1. case: we have only one sublist; return result
+        if len(all_items) == 1:
+            return all_items[0]
+        
+        result = all_items[0]
+        # 2. we have multiple lists
+        # check if item is already in result and add it if not
+        others = all_items[1:]
+        for o in others:
+            for l in o:
+                id = l.get('id',-1)
+                # check if id is in result
+                if not any(d['id'] == id for d in result):
+                    logging.debug(f'add {id} to result')
+                    result.append(l)
+                else:
+                    logging.debug(f'{id} is duplicate')
+        
+        return result
+
+    def _join_results(self, left, right, join_on):
+        """join left and right table"""
+        join_on_list = self._on.replace(' ','').split('=')
+        left_id = join_on_list[0].replace(f'{self._left_identifier}.','',1)
+        right_id = join_on_list[1].replace(f'{self._right_identifier}.','',1)
+        logging.debug(f'join tables on left: {left_id} right: {right_id}')
+
+        # print(json.dumps(left, indent=4))
+        # print()
+        # print(json.dumps(right, indent=4))
+        # print('-----')
+        result = []
+        for l in left:
+            value = self._get_value_from_dict(l, left_id.split('.'))
+            if value:
+                # check if value exists in right table
+                for r in right:
+                    r_val = self._get_value_from_dict(r, right_id.split('.'))
+                    if r_val == value:
+                        l.update(r)
+                        result.append(l)
+        return result
+    
+    def _get_value_from_dict(self, dictionary, keys):
+        if dictionary is None:
+            return None
+
+        nested_dict = dictionary
+
+        for key in keys:
+            try:
+                nested_dict = nested_dict[key]
+            except KeyError as e:
+                return None
+            except IndexError as e:
+                return None
+            except TypeError as e:
+                # check if nested_dict is a list
+                if isinstance(nested_dict, list):
+                    # check if next key is in any list
+                    for l in nested_dict:
+                        if key in l:
+                            return l[key]
+                    return None
+                else:
+                    return nested_dict
+
+        return nested_dict
