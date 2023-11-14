@@ -6,5 +6,6 @@ setup(name='veritas',
                 'veritas.devicemanagement',
                 'veritas.sot',
                 'veritas.tools'
+                'veritas.cmk'
                 ],
 )

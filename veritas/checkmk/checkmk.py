@@ -4,42 +4,41 @@ from ..tools import tools
 
 class Checkmk:
 
-    def __init__(self, sot, *values):
+    def __init__(self, sot, url, site, username, password):
         self._sot = sot
-        self.__api_url = None
+        self.__url = url
+        self.__site = site
+        self.__username = username
+        self.__password = password
         self.__session = None
+        self._checkmk = None
+        self.__api_url = None
+        self._start_session()
 
-    def start_session(self, *unnamed, **named):
+    def _start_session(self):
         """starts checkMK session"""
-        if not self._checkmk:
-            return self._checkmk
-
-        properties = tools.convert_arguments_to_properties(*unnamed, **named)
+        logging.debug(f'starting checkmk session on {self.__api_url}')
 
         # baseurl http://hostname/site/check_mk/api/1.0
-        url = properties.get('url')
-        site = properties.get('site')
-        username = properties.get('username')
-        password = properties.get('password')
-        self.__api_url = "%s/%s/check_mk/api/1.0" % (url, site)
-
-        logging.debug(f'starting session for {username} on {api_url}')
-        self._check_mk = self._sot.rest(url=api_url, 
-                                        username=username,
-                                        password=password)
-        check_mk.session()
-        check_mk.set_headers({'Content-Type': 'application/json'})
-        return self._check_mk
+        api_url = f'{self.__url}/{self.__site}/check_mk/api/1.0'
+        print(api_url)
+        logging.debug(f'starting session for {self.__username} on {api_url}')
+        self._checkmk = self._sot.rest(url=api_url, 
+                                       username=self.__username,
+                                       password=self.__password)
+        self._checkmk.session()
+        self._checkmk.set_headers({'Content-Type': 'application/json'})
 
     def get_all_hosts(self):
+        """return a list of all hosts"""
         devicelist = []
 
         # get a list of all hosts of check_mk
-        response = self._check_mk.get(url=f"/domain-types/host_config/collections/all",
+        response = self._checkmk.get(url=f"/domain-types/host_config/collections/all",
                                       params={"effective_attributes": False, },
                                       format='object')
         if response.status_code != 200:
-            logging.error(f'got status code {all_check_mk_hosts.status_code}; giving up')
+            logging.error(f'got status code {response.status_code}; giving up')
             return []
         devices = response.json().get('value')
         for device in devices:
@@ -53,7 +52,7 @@ class Checkmk:
 
     def get_all_host_tags(self):
         host_tags = {}
-        response = self._check_mk.get(url=f"/domain-types/host_tag_group/collections/all")
+        response = self._checkmk.get(url=f"/domain-types/host_tag_group/collections/all")
         for tag in response.json().get('value'):
             del tag['links']
             host_tag = tag.get('id',{})
@@ -71,7 +70,7 @@ class Checkmk:
     def add_to_check_mk(self, devices):
         data = {"entries": devices }
         params={"bake_agent": False}
-        host = self._check_mk.post(url=f"/domain-types/host_config/actions/bulk-create/invoke",
+        host = self._checkmk.post(url=f"/domain-types/host_config/actions/bulk-create/invoke",
                                    json=data, 
                                    params=params)
         status = host.status_code
@@ -99,18 +98,18 @@ class Checkmk:
                 "sites": site,
                 "force_foreign_changes": True}
 
-        return self._check_mk.post(url=f"/domain-types/activation_run/actions/activate-changes/invoke", 
+        return self._checkmk.post(url=f"/domain-types/activation_run/actions/activate-changes/invoke", 
                                    json=data, 
                                    headers=headers)
 
-    def move_host_to_folder(hostname, etag, new_folder):
+    def move_host_to_folder(self, hostname, etag, new_folder):
         data={"target_folder": new_folder}
         headers={
             "If-Match": etag,
             "Content-Type": 'application/json',
         }
         logging.debug(f'sending request {data} {headers}')
-        response = self._check_mk.post(url=f"/objects/host_config/{hostname}/actions/move/invoke", 
+        response = self._checkmk.post(url=f"/objects/host_config/{hostname}/actions/move/invoke", 
                                        json=data,
                                        headers=headers)
         status = response.status_code
@@ -138,7 +137,7 @@ class Checkmk:
             "Content-Type": 'application/json',
         }
         logging.debug(f'sending request {data} {headers}')
-        response = self._check_mk.put(url=f"/objects/host_config/{hostname}", 
+        response = self._checkmk.put(url=f"/objects/host_config/{hostname}", 
                                       json=data,
                                       headers=headers)
         if response.status_code == 200:
@@ -153,7 +152,7 @@ class Checkmk:
         for device in devices:
             data.append(device.get('host_name'))
 
-        response = self._check_mk.post(url=f"/domain-types/host_config/actions/bulk-delete/invoke", json={'entries': data})
+        response = self._checkmk.post(url=f"/domain-types/host_config/actions/bulk-delete/invoke", json={'entries': data})
         if response.status_code == 200 or response.status_code == 204 :
             logging.info(f'hosts {data} successfully deleted')
             return True
@@ -171,7 +170,7 @@ class Checkmk:
                 "query": '{"op": "=", "left": "host_name", "right": "' + hostname + '"}',
                 "columns": ['host_name', 'description'],
             }
-            response = self._check_mk.get(url=f"/objects/host/{hostname}/collections/services", params=params)
+            response = self._checkmk.get(url=f"/objects/host/{hostname}/collections/services", params=params)
             if response.status_code == 200 and len(response.json()['value']) <= 2:
                 logging.info(f'host {hostname} has only {len(response.json()["value"])} services')
                 hosts_with_no_services.append({'host_name': hostname})
@@ -179,7 +178,7 @@ class Checkmk:
         if len(hosts_with_no_services) > 0:
             self._start_single_discovery(check_mk_config, hosts_with_no_services, check_mk)
 
-    def start_single_discovery(devices):
+    def start_single_discovery(self, devices):
         logging.info('starting Host discovery')
         for device in devices:
             hostname = device.get('host_name')
@@ -187,10 +186,84 @@ class Checkmk:
             # in cmk 2.2 you can add: 'do_full_scan': True,
             data = {'host_name': hostname, 
                     'mode': 'fix_all'}
-            response = self._check_mk.post(url=f"/domain-types/service_discovery_run/actions/start/invoke", json=data)
+            response = self._checkmk.post(url=f"/domain-types/service_discovery_run/actions/start/invoke", json=data)
             status = response.status_code
             if status == 200:
                 logging.info('started successfully')
             else:
                 logging.error(f'status {status}; error: {response.content}')
 
+    def update_folders(self, devices, check_mk_config):
+        for device in devices:
+            fldrs = device.get('folder')
+            response = self._checkmk.get(url=f"/objects/folder_config/{fldrs}")
+            status = response.status_code
+            if status == 200:
+                logging.debug(f'{fldrs} found in check_mk')
+            elif status == 404:
+                # one or more parent folders are missing
+                # we have to check the complete path
+                logging.debug(f'{fldrs} does not exist; creating it')
+                path = fldrs.split('~')
+                for i in range(1, len(path)):
+                    pth = '~'.join(path[1:i])
+                    logging.debug(f'checking if ~{pth} exists')
+                    response = self._checkmk.get(url=f"/objects/folder_config/~{pth}")
+                    if response.status_code == 404:
+                        logging.debug(f'{pth} does not exists')
+                        i = pth.rfind('~')
+                        name = pth[i+1:]
+                        if i == -1:
+                            parent = "~"
+                        else:
+                            parent = "~%s" % pth[0:i]
+                        data = {"name": name, 
+                                "title": name, 
+                                "parent": parent }
+                        folder_config = self.get_folder_config(check_mk_config, name)
+                        if folder_config is not None:
+                            data.update({'attributes': folder_config})
+                        logging.debug(f'creating folder {name} in {parent}')
+                        response = self._checkmk.post(url=f"/domain-types/folder_config/collections/all", json=data)
+                        if response.status_code == 200:
+                            logging.info(f'folder {name} added in {parent}')
+                        else:
+                            logging.error(f'could not add folder; error: {response.content}')
+                # now we have the path upto our folder
+                i = fldrs.rfind('~')
+                name = fldrs[i+1:]
+                if i == -1:
+                    parent = "~"
+                else:
+                    parent = fldrs[0:i]
+                logging.debug(f'creating folder {name} in {parent}')
+                data = {"name": name, 
+                        "title": name, 
+                        "parent": parent }
+                folder_config = self.get_folder_config(check_mk_config, name)
+                if folder_config is not None:
+                            data.update({'attributes': folder_config})
+                response = self._checkmk.post(url=f"/domain-types/folder_config/collections/all", json=data)
+                if response.status_code == 200:
+                    logging.info(f'folder {name} added in {parent}')
+                else:
+                    logging.error(f'could not add folder; error: {response.content}')
+            else:
+                logging.debug(f'got status: {status}')
+
+    def get_folder_config(self, check_mk_config, folder_name):
+        folders_config = check_mk_config.get('folders',{}).get('config')
+        if folders_config is None:
+            return None
+
+        default = None
+        for folder in folders_config:
+            if folder['name'] == folder_name:
+                response = dict(folder)
+                del response['name']
+                return response
+            elif folder['name'] == 'default':
+                response = dict(folder)
+                del response['name']
+                default = response
+        return default
