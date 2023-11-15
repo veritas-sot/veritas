@@ -60,12 +60,12 @@ class Checkmk:
         
         return host_tags
 
-    def get_host(self, host):
+    def get_etag(self, host):
         params={"effective_attributes": False}
-        response = check_mk.get(url=f"/objects/host_config/{host}", params=params)
+        response = self._checkmk.get(url=f"/objects/host_config/{host}", params=params)
         if response.status_code == 404:
-            return None, None
-        return response.headers.get('ETag'), response.json()
+            return None
+        return response.headers.get('ETag')
 
     def add_to_check_mk(self, devices):
         data = {"entries": devices }
@@ -123,9 +123,9 @@ class Checkmk:
     def update_host_in_cmk(self, hostname, etag, update_attributes, remove_attributes):
         logging.info(f'updating host {hostname}')
         data = {}
-        if len(update_attributes) > 0:
+        if update_attributes:
             data.update({"update_attributes": update_attributes})
-        if len(remove_attributes) > 0:
+        if remove_attributes:
             data.update({"remove_attributes": remove_attributes})
 
         if len(data) == 0:
