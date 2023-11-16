@@ -35,8 +35,8 @@ class Checkmk:
 
         # get a list of all hosts of check_mk
         response = self._checkmk.get(url=f"/domain-types/host_config/collections/all",
-                                      params={"effective_attributes": False, },
-                                      format='object')
+                                     params={"effective_attributes": False, },
+                                     format='object')
         if response.status_code != 200:
             logging.error(f'got status code {response.status_code}; giving up')
             return []
@@ -67,12 +67,12 @@ class Checkmk:
             return None
         return response.headers.get('ETag')
 
-    def add_to_check_mk(self, devices):
-        data = {"entries": devices }
+    def add_hosts(self, devices):
+        data = {"entries": devices}
         params={"bake_agent": False}
         host = self._checkmk.post(url=f"/domain-types/host_config/actions/bulk-create/invoke",
-                                   json=data, 
-                                   params=params)
+                                  json=data, 
+                                  params=params)
         status = host.status_code
         if status == 200:
             logging.debug(f'host added to check_mk')
@@ -138,8 +138,8 @@ class Checkmk:
         }
         logging.debug(f'sending request {data} {headers}')
         response = self._checkmk.put(url=f"/objects/host_config/{hostname}", 
-                                      json=data,
-                                      headers=headers)
+                                     json=data,
+                                     headers=headers)
         if response.status_code == 200:
             logging.debug('updated successfully')
             return True
@@ -272,3 +272,40 @@ class Checkmk:
                 del response['name']
                 default = response
         return default
+
+    def add_folder(self, folder_config):
+        data ={'attributes': folder_config}
+        logging.debug(f'creating folder {name} in {parent}')
+        response = self._checkmk.post(url=f"/domain-types/folder_config/collections/all", json=data)
+        if response.status_code == 200:
+            logging.debug(f'folder {name} added in {parent}')
+            return True
+        else:
+            logging.error(f'could not add folder; error: {response.content}')
+            if response.status_code == 200:
+                logging.info(f'folder {name} added in {parent}')
+                return True
+            else:
+                logging.error(f'could not add folder; error: {response.content}')
+                return False
+
+    def add_config(self, config, url):
+        response = self._checkmk.post(url=url, json=config)
+        if response.status_code == 200:
+            logging.info(f'adding config successfully')
+            return True
+        else:
+            logging.error(f'adding config failed; error: {response.content}')
+            return False
+
+    def get(self, url, params=None, format=None):
+        logging.debug(f'getting url:{url} params:{params} format:{format}')
+        if url and params and format:
+            return self._checkmk.get(url=url,
+                                     params=params,
+                                     format=format)
+        elif url and params:
+            return self._checkmk.get(url=url,
+                                     params=params)
+        else:
+            return self._checkmk.get(url=url)
