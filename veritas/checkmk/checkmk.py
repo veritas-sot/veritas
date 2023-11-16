@@ -75,14 +75,14 @@ class Checkmk:
                                    params=params)
         status = host.status_code
         if status == 200:
-            logging.info(f'host added to check_mk')
+            logging.debug(f'host added to check_mk')
         elif status == 500:
             logging.error(f'got status {status}; maybe host is already in check_mk')
         else:
             logging.error(f'got status {status}; error: {host.content}')
 
     def activate_all_changes(self):
-        logging.info('activating all changes')
+        logging.debug('activating all changes')
         response = _activate_etag(check_mk, '*',[ site ])
         if response.status_code not in {200, 412}:
             logging.error(f'got status {response.status_code} could not activate changes; error: {response.content}')
@@ -114,14 +114,14 @@ class Checkmk:
                                        headers=headers)
         status = response.status_code
         if status == 200:
-            logging.info('moved successfully')
+            logging.debug('moved successfully')
             return True
         else:
             logging.error(f'status {status}; error: {response.content}')
             return False
 
     def update_host_in_cmk(self, hostname, etag, update_attributes, remove_attributes):
-        logging.info(f'updating host {hostname}')
+        logging.debug(f'updating host {hostname}')
         data = {}
         if update_attributes:
             data.update({"update_attributes": update_attributes})
@@ -141,7 +141,7 @@ class Checkmk:
                                       json=data,
                                       headers=headers)
         if response.status_code == 200:
-            logging.info('updated successfully')
+            logging.debug('updated successfully')
             return True
         else:
             logging.error(f'status {response.status_code}; error: {response.content}')
@@ -154,7 +154,7 @@ class Checkmk:
 
         response = self._checkmk.post(url=f"/domain-types/host_config/actions/bulk-delete/invoke", json={'entries': data})
         if response.status_code == 200 or response.status_code == 204 :
-            logging.info(f'hosts {data} successfully deleted')
+            logging.debug(f'hosts {data} successfully deleted')
             return True
         else:
             logging.error(f'error removing hosts; status {response.status_code}; error: {response.content}')
@@ -179,7 +179,7 @@ class Checkmk:
             self._start_single_discovery(check_mk_config, hosts_with_no_services, check_mk)
 
     def start_single_discovery(self, devices):
-        logging.info('starting Host discovery')
+        logging.debug('starting Host discovery')
         for device in devices:
             hostname = device.get('host_name')
             logging.info(f'starting discovery on {hostname}')
@@ -189,9 +189,11 @@ class Checkmk:
             response = self._checkmk.post(url=f"/domain-types/service_discovery_run/actions/start/invoke", json=data)
             status = response.status_code
             if status == 200:
-                logging.info('started successfully')
+                logging.debug('started successfully')
+                return True
             else:
                 logging.error(f'status {status}; error: {response.content}')
+                return False
 
     def update_folders(self, devices, check_mk_config):
         for device in devices:
@@ -226,7 +228,7 @@ class Checkmk:
                         logging.debug(f'creating folder {name} in {parent}')
                         response = self._checkmk.post(url=f"/domain-types/folder_config/collections/all", json=data)
                         if response.status_code == 200:
-                            logging.info(f'folder {name} added in {parent}')
+                            logging.debug(f'folder {name} added in {parent}')
                         else:
                             logging.error(f'could not add folder; error: {response.content}')
                 # now we have the path upto our folder
@@ -245,11 +247,14 @@ class Checkmk:
                             data.update({'attributes': folder_config})
                 response = self._checkmk.post(url=f"/domain-types/folder_config/collections/all", json=data)
                 if response.status_code == 200:
-                    logging.info(f'folder {name} added in {parent}')
+                    logging.debug(f'folder {name} added in {parent}')
+                    return True
                 else:
                     logging.error(f'could not add folder; error: {response.content}')
+                    return False
             else:
                 logging.debug(f'got status: {status}')
+                return False
 
     def get_folder_config(self, check_mk_config, folder_name):
         folders_config = check_mk_config.get('folders',{}).get('config')
