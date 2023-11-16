@@ -76,10 +76,13 @@ class Checkmk:
         status = host.status_code
         if status == 200:
             logging.debug(f'host added to check_mk')
+            return True
         elif status == 500:
             logging.error(f'got status {status}; maybe host is already in check_mk')
+            return False
         else:
             logging.error(f'got status {status}; error: {host.content}')
+            return False
 
     def activate_all_changes(self):
         logging.debug('activating all changes')
@@ -195,7 +198,7 @@ class Checkmk:
                 logging.error(f'status {status}; error: {response.content}')
                 return False
 
-    def update_folders(self, devices, check_mk_config):
+    def update_folders(self, devices, default_config):
         for device in devices:
             fldrs = device.get('folder')
             response = self._checkmk.get(url=f"/objects/folder_config/{fldrs}")
@@ -222,7 +225,7 @@ class Checkmk:
                         data = {"name": name, 
                                 "title": name, 
                                 "parent": parent }
-                        folder_config = self.get_folder_config(check_mk_config, name)
+                        folder_config = self.get_folder_config(default_config, name)
                         if folder_config is not None:
                             data.update({'attributes': folder_config})
                         logging.debug(f'creating folder {name} in {parent}')
@@ -242,7 +245,7 @@ class Checkmk:
                 data = {"name": name, 
                         "title": name, 
                         "parent": parent }
-                folder_config = self.get_folder_config(check_mk_config, name)
+                folder_config = self.get_folder_config(default_config, name)
                 if folder_config is not None:
                             data.update({'attributes': folder_config})
                 response = self._checkmk.post(url=f"/domain-types/folder_config/collections/all", json=data)
@@ -256,11 +259,7 @@ class Checkmk:
                 logging.debug(f'got status: {status}')
                 return False
 
-    def get_folder_config(self, check_mk_config, folder_name):
-        folders_config = check_mk_config.get('folders',{}).get('config')
-        if folders_config is None:
-            return None
-
+    def get_folder_config(self, folders_config, folder_name):
         default = None
         for folder in folders_config:
             if folder['name'] == folder_name:
@@ -273,12 +272,20 @@ class Checkmk:
                 default = response
         return default
 
-    def add_folder(self, folder_config):
-        data ={'attributes': folder_config}
+    def add_folder(self, folder, default_config=None):
+        name = folder.get('name')
+        parent = folder.get('parent','')
+        data = {"name": name,
+                "title": folder.get('title', name),
+                "parent": parent
+               }
+        folder_config = self.get_folder_config(default_config, name)
+        if folder_config is not None:
+            data.update({'attributes': folder_config})
         logging.debug(f'creating folder {name} in {parent}')
         response = self._checkmk.post(url=f"/domain-types/folder_config/collections/all", json=data)
         if response.status_code == 200:
-            logging.debug(f'folder {name} added in {parent}')
+            logging.info(f'folder {name} added in {parent}')
             return True
         else:
             logging.error(f'could not add folder; error: {response.content}')
