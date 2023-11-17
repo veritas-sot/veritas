@@ -30,12 +30,22 @@ queries:
         $get_type: Boolean = false,
         $get_description: Boolean = false,
         $get_location: Boolean = false,
-        $get_ip_adresses: Boolean = false,
+        $get_ip_addresses: Boolean = false,
         $get_tags: Boolean = false, 
         $get_tenant: Boolean = false,
         $get_cf: Boolean = false,
         $get_custom_field_data: Boolean = false,
         $get__custom_field_data: Boolean = false,
+        $get_primary_ip4_for: Boolean = false,
+        $get_name: Boolean = false,
+        $get_hostname: Boolean = false,
+        $get_role: Boolean = false,
+        $get_device_type: Boolean = false,
+        $get_platform: Boolean = false,
+        $get_serial: Boolean = false,
+        $get_status: Boolean = false,
+        $get_config_context: Boolean = false,
+        $get_interfaces: Boolean = false,
         __query_vars__
       ) {
       prefixes (__query_params__) {
@@ -53,10 +63,111 @@ queries:
         _custom_field_data @include(if: $get_cf)
         _custom_field_data @include(if: $get__custom_field_data)
         custom_field_data : _custom_field_data @include(if: $get_custom_field_data)
-        ip_addresses @include(if: $get_ip_adresses) {
+        ip_addresses @include(if: $get_ip_addresses) {
           address
-          primary_ip4_for {
+          primary_ip4_for(__subquery_params__) @include(if: $get_primary_ip4_for) {
+            id @include(if: $get_id)
+          name @include(if: $get_name)
+          hostname: name @include(if: $get_hostname)
+          role @include(if: $get_role) {
             name
+          }
+          device_type @include(if: $get_device_type) {
+            model
+          }
+          platform @include(if: $get_platform) {
+            name
+            manufacturer {
+              name
+            }
+          }
+          tags @include(if: $get_tags) {
+            name
+            content_types {
+              id
+              app_label
+              model
+            }
+          }
+          tenant @include(if: $get_tenant) {
+            name
+            tenant_group {
+              name
+            }
+          }
+          serial @include(if: $get_serial)
+          status @include(if: $get_status) {
+            name
+          }
+          config_context @include(if: $get_config_context)
+          _custom_field_data @include(if: $get_cf)
+          interfaces @include(if: $get_interfaces) {
+            name
+            device {
+              name
+            }
+            description
+            enabled
+            mac_address
+            type
+            mode
+            ip_addresses {
+              address
+              role {
+                id
+              }
+              tags {
+                name
+                content_types {
+                  id
+                  app_label
+                  model
+                }
+              }
+            }
+            connected_circuit_termination {
+              circuit {
+                cid
+                commit_rate
+                provider {
+                  name
+                }
+              }
+            }
+            tagged_vlans {
+              name
+              vid
+            }
+            untagged_vlan {
+              name
+              vid
+            }
+            cable {
+              termination_a_type
+              status {
+                name
+              }
+              color
+            }
+            tags {
+              name
+              content_types {
+                id
+                app_label
+                model
+              }
+            }
+            lag {
+              name
+              enabled
+            }
+            member_interfaces {
+              name
+            }
+          }
+          location @include(if: $get_location) {
+            name
+          }
           }
         }
         tags @include(if: $get_tags) {
@@ -201,7 +312,7 @@ queries:
       }
     }
 
-  nb.ipadresses: >
+  nb.ipaddresses: >
     query IPadresses( 
           $get_id: Boolean = false, 
           $get_address: Boolean = false,
@@ -240,7 +351,7 @@ queries:
           prefix
           prefix_length
         } 
-        primary_ip4_for @include(if: $get_primary_ip4_for) {
+        primary_ip4_for(__subquery_params__) @include(if: $get_primary_ip4_for) {
           id @include(if: $get_id)
           name @include(if: $get_name)
           hostname: name @include(if: $get_hostname)

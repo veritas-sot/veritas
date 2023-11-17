@@ -272,6 +272,7 @@ class Getter(object):
 
         query_final_vars = []
         query_final_params = []
+        query_final_subparams = []
         cf_fields_types = None
 
         properties = tools.convert_arguments_to_properties(unnamed, named)
@@ -305,13 +306,42 @@ class Getter(object):
                     query_final_vars.append(f'${where}: [Int]')
                 else:
                     query_final_vars.append(f'${where}: [String]')
-            # add parameter to query parameters
-            query_final_params.append(f'{where}: ${where}')
+            
+            #
+            # we have some special cases
+            # some queries have the possibility of "sub" queries eg. when you want to poll
+            # devices within a specific prefix range that belong to a specific platform
+            # primary_ip4_for(__subquery_params__) is used to query for the platform
+            #
+            if using in ['nb.ipaddresses']:
+                if where in ['prefix', 'prefix_in_vrf' 'parent', 'parent__n', 
+                             'namespace'] \
+                             or 'type' in where \
+                             or 'mask' in where:
+                    query_final_params.append(f'{where}: ${where}')
+                else:
+                    query_final_subparams.append(f'{where}: ${where}')
+            # elif using in ['nb.prefixes']:
+            #     if where in ['within_include', 'namespace', 'status'] \
+            #                  or 'type' in where:
+            #         query_final_params.append(f'{where}: ${where}')
+            #     else:
+            #         query_final_subparams.append(f'{where}: ${where}')
+            else:
+                query_final_params.append(f'{where}: ${where}')
 
         # convert string ["val1","val2",....,"valn"] to list
         for key,val in dict(query_where).items():
             if isinstance(val, list):
-                if cf_fields_types and cf_fields_types.get(key.replace('cf_',''),{}).get('type') == 'Text':
+                # this is the only place where we can convert a list to a string
+                # keys like prefix or within_include require a string
+                # in this case we convert the list to a string
+                # when we use simple queries we hget the values as string
+                # but when the user have a logical query we get the valaues as list
+                if key in ['within_include', 'changed_object_type', 'prefix']:
+                    query_where[key] = val[0]
+                # when using custom fields we havew to convert the values as well
+                elif cf_fields_types and cf_fields_types.get(key.replace('cf_',''),{}).get('type') == 'Text':
                     if len(val) > 1:
                         logging.erro(f'parameter {key} does not support [String]')
                     query_where[key] = val[0]
@@ -325,23 +355,36 @@ class Getter(object):
                     query_where[key] = val.split(',')
 
         str_final_vars = ",".join(query_final_vars)
-        str_final_params = ",".join(query_final_params)
-        query = query.replace('__query_vars__', str_final_vars).replace('__query_params__',str_final_params)
-        #logging.debug(query)
+        str_final_query_params = ",".join(query_final_params)
+        str_final_subquery_params = ",".join(query_final_subparams)
+        query = query.replace('__query_vars__', str_final_vars) \
+                     .replace('__query_params__', str_final_query_params) \
+                     .replace('__subquery_params__', str_final_subquery_params) \
+                     .replace('()','')
         # query_select are values the user has SELECTed
         for v in query_select:
             if v.startswith('cf_'):
                 query_where['get__custom_field_data'] = True
             else:
                 query_where[f'get_{v}'] = True
+        
+        #debugging output
+        print('--- query_final_params ---')
+        print(query_final_params)
+        print('--- query_final_subparams ---')
+        print(query_final_subparams)
+        print('--- query ---')
+        print(query)
+        print('--- variables ---')
+        print(query_where)
 
         logging.debug(f'query_select={query_select} using={using} query_where={query_where} (exc)')
         response = self._nautobot.graphql.query(query=query, variables=query_where).json
-        #logging.debug(response)
+        logging.debug(response)
         if 'errors' in response:
             logging.error(f'got error: {response.get("errors")}')
             response = {}
-        if 'nb.ipadresses' in using:
+        if 'nb.ipaddresses' in using:
             data = dict(response)['data']['ip_addresses']
         elif 'nb.vlan' in using:
             data = dict(response)['data']['vlans']

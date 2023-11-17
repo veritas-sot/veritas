@@ -96,7 +96,6 @@ class Selection(object):
 
         # check if we need some additional data
         if self._join:
-
             left_select = set()
             right_select = set('')
 
@@ -182,7 +181,7 @@ class Selection(object):
            This is a query that runs independently, so no additional data is required.
         """
 
-        if 'nb.ipadresses' in using:
+        if 'nb.ipaddresses' in using:
             default={'address': ''}
         elif 'nb.changes' in using:
             default={'time__gt': ''}
