@@ -205,6 +205,9 @@ queries:
     query IPadresses( 
           $get_id: Boolean = false, 
           $get_address: Boolean = false,
+          $get_description: Boolean = false,
+          $get_dns_name: Boolean = false,
+          $get_parent: Boolean = false,
           $get_type: Boolean = false,
           $get_name: Boolean = false, 
           $get_hostname: Boolean = true, 
@@ -225,11 +228,18 @@ queries:
       ip_addresses(__query_params__) {
         id @include(if: $get_id)
         address @include(if: $get_address)
+        description @include(if: $get_description)
+        dns_name @include(if: $get_dns_name)
         type @include(if: $get_type)
         tags @include(if: $get_tags) {
           id
           name
         }
+        parent @include(if: $get_parent) {
+          network
+          prefix
+          prefix_length
+        } 
         primary_ip4_for @include(if: $get_primary_ip4_for) {
           id @include(if: $get_id)
           name @include(if: $get_name)
