@@ -11,7 +11,7 @@ queries:
           $get_object_type: Boolean = false,
           __query_vars__
         ) {
-        object_changes (__query_params__) {
+        object_changes (__changes_params__) {
           time @include(if: $get_time)
           user_name @include(if: $get_user_name)
           action @include(if: $get_action)
@@ -48,7 +48,7 @@ queries:
         $get_interfaces: Boolean = false,
         __query_vars__
       ) {
-      prefixes (__query_params__) {
+      prefixes (__prefixes_params__) {
         id @include(if: $get_id)
         prefix @include(if: $get_prefix)
         prefix_length @include(if: $get_prefix_length)
@@ -65,7 +65,7 @@ queries:
         custom_field_data : _custom_field_data @include(if: $get_custom_field_data)
         ip_addresses @include(if: $get_ip_addresses) {
           address
-          primary_ip4_for(__subquery_params__) @include(if: $get_primary_ip4_for) {
+          primary_ip4_for(__primaryip4for_params__) @include(if: $get_primary_ip4_for) {
             id @include(if: $get_id)
           name @include(if: $get_name)
           hostname: name @include(if: $get_hostname)
@@ -207,7 +207,7 @@ queries:
       $get_tenant: Boolean = false,
       __query_vars__
     ) {
-      devices(__query_params__) {
+      devices(__devices_params__) {
         id @include(if: $get_id)
         name @include(if: $get_name)
         hostname: name @include(if: $get_hostname)
@@ -245,7 +245,7 @@ queries:
         _custom_field_data @include(if: $get_cf)
         _custom_field_data @include(if: $get__custom_field_data)
         custom_field_data : _custom_field_data @include(if: $get_custom_field_data)
-        interfaces @include(if: $get_interfaces) {
+        interfaces (__interfaces_params__) @include(if: $get_interfaces) {
           name
           description
           enabled
@@ -336,7 +336,7 @@ queries:
           $get_tenant: Boolean = false,
           __query_vars__
           ) {
-      ip_addresses(__query_params__) {
+      ip_addresses(__ipaddresses_params__) {
         id @include(if: $get_id)
         address @include(if: $get_address)
         description @include(if: $get_description)
@@ -351,7 +351,7 @@ queries:
           prefix
           prefix_length
         } 
-        primary_ip4_for(__subquery_params__) @include(if: $get_primary_ip4_for) {
+        primary_ip4_for(__primaryip4for_params__) @include(if: $get_primary_ip4_for) {
           id @include(if: $get_id)
           name @include(if: $get_name)
           hostname: name @include(if: $get_hostname)
@@ -387,7 +387,7 @@ queries:
           }
           config_context @include(if: $get_config_context)
           _custom_field_data @include(if: $get_cf)
-          interfaces @include(if: $get_interfaces) {
+          interfaces (__interfaces_params__) @include(if: $get_interfaces) {
             name
             device {
               name
@@ -472,7 +472,7 @@ queries:
         $get_tags: Boolean = false,
         __query_vars__
       ) {
-      vlans(__query_params__) {
+      vlans(__vlans_params__) {
         id @include(if: $get_id)
         vid @include(if: $get_vid)
         name @include(if: $get_name)
@@ -506,8 +506,8 @@ queries:
       $get_tags: Boolean = false,
       __query_vars__
     ) {
-      locations(__query_params__) @include(if: $get_locations) {name}
-      tags(__query_params__) @include(if: $get_tags) {
+      locations(__general_params__) @include(if: $get_locations) {name}
+      tags(__general_params__) @include(if: $get_tags) {
         name
         content_types {
           id

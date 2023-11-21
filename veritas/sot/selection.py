@@ -43,6 +43,9 @@ class Selection(object):
         self._right_table = None
         self._right_identifier = None
 
+        # we have two modes sql and gql
+        self._mode = "sql"
+
         # set values
         if len(values) > 1:
             self._select = []
@@ -90,11 +93,16 @@ class Selection(object):
         self._on = properties
         return self
 
+    def mode(self, mode):
+        logging.debug('setting mode to {mode}')
+        self._mode = mode
+        return self
+
     def where(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        logging.debug(f'query: values {self._select} using: {self._using} where {properties}')
+        logging.debug(f'query: values {self._select} using: {self._using} where {properties} mode: {self._mode}')
 
-        # check if we need some additional data
+        # is it a join operation
         if self._join:
             left_select = set()
             right_select = set('')
@@ -141,17 +149,20 @@ class Selection(object):
             left_result = self._parse_query(where_left, list(left_select), self._left_table)
             right_result = self._parse_query(where_right, list(right_select), self._right_table)
             return self._join_results(left_result, right_result, self._on)
-
         else:
-            return self._parse_query(properties, self._select, self._using)
+            if self._mode == "sql":
+                return self._parse_sql_query(properties, self._select, self._using)
+            else:
+                return self._parse_gql_query(properties, self._select, self._using)
 
-    def _refresh_cf_types(self):
-        nb = self._sot.open_nautobot()
-        self.__cf_types = {}
-        for t in nb.extras.custom_fields.all():
-            self.__cf_types[t.display] = {'type': str(t.type)}
+    # GQL mode 
+    def _parse_gql_query(self, expression, select, using):
+        """parsw GraphQL mode query"""
+        return self._sot.get.query(select=select, using=using, where=expression, mode='gql')
 
-    def _parse_query(self, expression, select, using):
+    # SQL mode below
+
+    def _parse_sql_query(self, expression, select, using):
         logging.debug(f'expression {expression} ({len(expression)})')
         # lets check if we have a logical operation
         found_logical_expression = False
@@ -172,12 +183,12 @@ class Selection(object):
             self._query_logical_tree(logical_tree, select, using)
             response = logical_tree.root.response
         else:
-            response = self._simple_query(expression, select, using)
+            response = self._simple_sql_query(expression, select, using)
         
         return response
 
-    def _simple_query(self, properties, select, using):
-        """returns data of simple queries
+    def _simple_sql_query(self, properties, select, using):
+        """returns data of simple SQL queries
            This is a query that runs independently, so no additional data is required.
         """
 
@@ -204,7 +215,7 @@ class Selection(object):
         else:
             where = default
 
-        return self._sot.get.query(select=select, using=using, where=where)
+        return self._sot.get.query(select=select, using=using, where=where, mode='sql')
 
     def _build_logical_tree(self, res):
         """parse logical expression and build tree"""
@@ -262,6 +273,12 @@ class Selection(object):
         while self._condense_single_run(root):
             run += 1
             logging.debug(f'condense run {run}')
+
+    def _refresh_cf_types(self):
+        nb = self._sot.open_nautobot()
+        self.__cf_types = {}
+        for t in nb.extras.custom_fields.all():
+            self.__cf_types[t.display] = {'type': str(t.type)}
 
     def _condense_single_run(self, root):
         nodes = search.findall(root, filter_=lambda node: node.values == None)

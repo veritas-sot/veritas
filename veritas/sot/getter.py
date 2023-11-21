@@ -260,126 +260,106 @@ class Getter(object):
         select = properties.get('select') if 'select' in properties else properties.get('values',['hostname'])
         using = properties.get('using','nb.devices')
         where = properties.get('where') if 'where' in properties else properties.get('parameter')
+        mode = properties.get('mode','sql')
 
         logging.debug(f'query select {select} using {using} where {where} (query)')
-        response = self._execute_query(select=select, using=using, where=where)
-        return response
+        if mode == "sql":
+            return self._execute_sql_query(select=select, using=using, where=where)
+        else:
+            return self._execute_gql_query(select=select, using=using, where=where)
 
-    def _execute_query(self, *unnamed, **named):
-        """execute query and returns data"""
+    def _execute_sql_query(self, *unnamed, **named):
+        """execute sql like query and returns data"""
 
         self._nautobot = self._sot.open_nautobot()
 
-        query_final_vars = []
-        query_final_params = []
-        query_final_subparams = []
-        cf_fields_types = None
+        subqueries = {'__interfaces_params__': [],
+                      '__primaryip4for_params__': [],
+                      '__devices_params__': [],
+                      '__prefixes_params__': [],
+                      '__changes_params__': [],
+                      '__ipaddresses_params__': [],
+                      '__vlans_params__': [],
+                      '__locations_params__': [],
+                      '__tags_params__': [],
+                      '__general_params__': []}
 
         properties = tools.convert_arguments_to_properties(unnamed, named)
-        query_select = properties.get('select',{})
+        select = properties.get('select',{})
         using = properties.get('using', 'nb.devices')
-        query_where = properties.get('where',{})
+        where = properties.get('where',{})
 
         query = self._sot.get_config().get('queries',{}).get(using)
 
-        # query_where are vars the user filters on (WHERE clause)
-        for where in dict(query_where):
-            # custom fields are a special case
-            # we do NOT know what custom fields are part of the SOT
-            if where.startswith('cf_'):
-                if not cf_fields_types:
-                    cf_fields_types = self.get.custom_fields_type()
-                # SELECT custom fields
-                query_where['get_cf'] = True
-                cf_type = "String"
-                if where.replace('cf_','') in cf_fields_types:
-                    c = cf_fields_types[where.replace('cf_','')]['type']
-                cf_type = "String" if c == "Text" else "List"
-                if cf_type == "String":
-                    query_final_vars.append(f'${where}: String')
-                else:
-                    query_final_vars.append(f'${where}: [String]')
-            else:
-                if where in ['within_include', 'changed_object_type', 'prefix']:
-                    query_final_vars.append(f'${where}: String')
-                elif where in ['vid']:
-                    query_final_vars.append(f'${where}: [Int]')
-                else:
-                    query_final_vars.append(f'${where}: [String]')
-            
+        # get final variables for our main parameter
+        query_final_vars, cf_fields_types = self.dict_to_query_var(where, "")
+
+        # loop through where statement and put values to subqueries and adjust custom field types
+        for whr in where:
             #
             # we have some special cases
             # some queries have the possibility of "sub" queries eg. when you want to poll
             # devices within a specific prefix range that belong to a specific platform
-            # primary_ip4_for(__subquery_params__) is used to query for the platform
+            # primary_ip4_for(__primaryip4for_params__) is used to query for the platform
             #
-            if using in ['nb.ipaddresses']:
-                if where in ['prefix', 'prefix_in_vrf' 'parent', 'parent__n', 
-                             'namespace'] \
-                             or 'type' in where \
-                             or 'mask' in where:
-                    query_final_params.append(f'{where}: ${where}')
-                else:
-                    query_final_subparams.append(f'{where}: ${where}')
-            # elif using in ['nb.prefixes']:
-            #     if where in ['within_include', 'namespace', 'status'] \
-            #                  or 'type' in where:
-            #         query_final_params.append(f'{where}: ${where}')
-            #     else:
-            #         query_final_subparams.append(f'{where}: ${where}')
+            if whr.startswith('interfaces_'):
+                subqueries['__interfaces_params__'].append(f'{whr.replace("interfaces_","")}: ${whr}')
+            elif whr.startswith('pip4for_'):
+                subqueries['__primaryip4for_params__'].append(f'{whr.replace("pip4for_","")}: ${whr}')
             else:
-                query_final_params.append(f'{where}: ${where}')
+                sq = f'__{using.replace("nb.","")}_params__'
+                subqueries[sq].append(f'{whr}: ${whr}')
+
+            # adjust the type of custom fields
+            name = f'${whr}: String'
+            if isinstance(where[whr], list) and name in query_final_vars:
+                logging.debug(f'convert {whr} to String')
+                where[whr] = where[whr][0]
 
         # convert string ["val1","val2",....,"valn"] to list
-        for key,val in dict(query_where).items():
+        for key,val in dict(where).items():
             if isinstance(val, list):
                 # this is the only place where we can convert a list to a string
                 # keys like prefix or within_include require a string
                 # in this case we convert the list to a string
-                # when we use simple queries we hget the values as string
-                # but when the user have a logical query we get the valaues as list
+                # when we use simple queries we get the values as string
+                # but using logical query we get the values as list
                 if key in ['within_include', 'changed_object_type', 'prefix']:
-                    query_where[key] = val[0]
-                # when using custom fields we havew to convert the values as well
+                    where[key] = val[0]
+                # when using custom fields we have to convert the values as well
                 elif cf_fields_types and cf_fields_types.get(key.replace('cf_',''),{}).get('type') == 'Text':
                     if len(val) > 1:
                         logging.erro(f'parameter {key} does not support [String]')
-                    query_where[key] = val[0]
-
-            # because we are setting query_where['get_cf'] = True (above)
-            # we have to check if val is not a bool
-            if not isinstance(val, bool):
-                if '[' in val and ']' in val:
-                    # remove [,],' and "
-                    val = val.replace('[','').replace(']','').replace('"','').replace('\'','')
-                    query_where[key] = val.split(',')
+                    where[key] = val[0]
 
         str_final_vars = ",".join(query_final_vars)
-        str_final_query_params = ",".join(query_final_params)
-        str_final_subquery_params = ",".join(query_final_subparams)
-        query = query.replace('__query_vars__', str_final_vars) \
-                     .replace('__query_params__', str_final_query_params) \
-                     .replace('__subquery_params__', str_final_subquery_params) \
-                     .replace('()','')
-        # query_select are values the user has SELECTed
-        for v in query_select:
-            if v.startswith('cf_'):
-                query_where['get__custom_field_data'] = True
-            else:
-                query_where[f'get_{v}'] = True
-        
-        #debugging output
-        print('--- query_final_params ---')
-        print(query_final_params)
-        print('--- query_final_subparams ---')
-        print(query_final_subparams)
-        print('--- query ---')
-        print(query)
-        print('--- variables ---')
-        print(query_where)
+        # the query variables
+        query = query.replace('__query_vars__', str_final_vars)                     
+        for q in subqueries:
+            query = query.replace(q, ",".join(subqueries[q]))
+        # cleanup
+        query = query.replace('{}','').replace('()','')
 
-        logging.debug(f'query_select={query_select} using={using} query_where={query_where} (exc)')
-        response = self._nautobot.graphql.query(query=query, variables=query_where).json
+        # select are values the user has SELECTed
+        for v in select:
+            if v.startswith('cf_'):
+                where['get__custom_field_data'] = True
+            else:
+                where[f'get_{v}'] = True
+        
+        # debugging output
+        print('--- str_final_vars ---')
+        print(str_final_vars)
+        for q in subqueries:
+            print(q)
+            print(subqueries[q])
+        # print('--- query ---')
+        # print(query)
+        print('--- variables ---')
+        print(where)
+
+        logging.debug(f'select={select} using={using} where={where} (exc)')
+        response = self._nautobot.graphql.query(query=query, variables=where).json
         logging.debug(response)
         if 'errors' in response:
             logging.error(f'got error: {response.get("errors")}')
@@ -397,3 +377,111 @@ class Getter(object):
         else:
             data = dict(response).get('data',{}).get('devices',{})
         return data
+
+    def _execute_gql_query(self, *unnamed, **named):
+        """execute GraphQL based queries"""
+
+        self._nautobot = self._sot.open_nautobot()
+        variables = {}
+        query_final_vars = []
+
+        subqueries = {'__interfaces_params__': [],
+                      '__primaryip4for_params__': [],
+                      '__devices_params__': [],
+                      '__prefixes_params__': [],
+                      '__changes_params__': [],
+                      '__ipaddresses_params__': [],
+                      '__vlans_params__': [],
+                      '__locations_params__': [],
+                      '__tags_params__': [],
+                      '__general_params__': []}
+
+        properties = tools.convert_arguments_to_properties(unnamed, named)        
+        select = properties.get('select',{})
+        using = properties.get('using', 'nb.devices')
+        where = properties.get('where', {})
+        query = self._sot.get_config().get('queries',{}).get(using)
+
+        for sq in where:
+            prefix = f'{sq}_' if sq != 'devices' else ""
+            qfv, cf_fields_types = self.dict_to_query_var(where[sq], prefix)
+            query_final_vars += qfv
+            sq_name = f'__{sq}_params__'
+            for key,value in where[sq].items():
+                subqueries[sq_name].append(f'{key}: ${prefix}{key}')
+                variables[f'{prefix}{key}'] = value
+
+        # select are values the user has SELECTed
+        for v in select:
+            if v.startswith('cf_'):
+                variables['get__custom_field_data'] = True
+            else:
+                variables[f'get_{v}'] = True
+        
+        str_final_vars = ",".join(query_final_vars)
+        # the query variables
+        query = query.replace('__query_vars__', str_final_vars)                     
+        for q in subqueries:
+            query = query.replace(q, ",".join(subqueries[q]))
+        # cleanup
+        query = query.replace('{}','').replace('()','')
+
+        # debugging output
+        print('--- str_final_vars ---')
+        print(str_final_vars)
+        for q in subqueries:
+            print(q)
+            print(subqueries[q])
+        print('--- query ---')
+        print(query)
+        print('--- variables ---')
+        print(variables)
+
+        response = self._nautobot.graphql.query(query=query, variables=variables).json
+        # logging.debug(response)
+        if 'errors' in response:
+            logging.error(f'got error: {response.get("errors")}')
+            response = {}
+        if 'nb.ipaddresses' in using:
+            data = dict(response)['data']['ip_addresses']
+        elif 'nb.vlan' in using:
+            data = dict(response)['data']['vlans']
+        elif 'nb.prefixes' in using:
+            data = dict(response)['data']['prefixes']
+        elif 'nb.general' in using:
+            data = dict(response)['data']
+        elif 'nb.changes' in using:
+            data = dict(response)['data']['object_changes']
+        else:
+            data = dict(response).get('data',{}).get('devices',{})
+        return data
+
+    def dict_to_query_var(self, data, prefix):
+        """returns list containing name of paramter and type and cf field types"""
+        response = []
+        cf_fields_types = None
+
+        for whr in dict(data):
+            # custom fields are a special case
+            # we do NOT know what custom fields are part of the SOT
+            cf_name = whr.replace('pip4for_','').replace('interfaces_','')
+            if cf_name.startswith('cf_'):
+                if not cf_fields_types:
+                    cf_fields_types = self.get.custom_fields_type()
+                cf_type = "String"
+                if cf_name.replace('cf_','') in cf_fields_types:
+                    c = cf_fields_types[cf_name.replace('cf_','')]['type']
+                cf_type = "String" if c == "Text" else "List"
+                if cf_type == "String":
+                    response.append(f'${prefix}{whr}: String')
+                else:
+                    response.append(f'${prefix}{whr}: [String]')
+            else:
+                if whr in ['within_include', 'changed_object_type', 'prefix']:
+                    response.append(f'${prefix}{whr}: String')
+                elif whr in ['vid']:
+                    response.append(f'${prefix}{whr}: [Int]')
+                else:
+                    response.append(f'${prefix}{whr}: [String]')
+        return response, cf_fields_types
+    
