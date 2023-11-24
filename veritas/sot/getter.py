@@ -149,11 +149,11 @@ class Getter(object):
     def hldm(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
         
-        device = properties.get('device')
         select = ['id','hostname','interfaces','location','primary_ip4','role',
-                  'device_type','platform','tags','serial','config_context','cf']
+                  'custom_field_data', 'device_type','platform','tags','serial',
+                  'config_context', 'tenant']
         using = 'nb.devices'
-        where = {'name': device}
+        where = {'name': properties.get('device')}
         return self.query(select=select, using=using, where=where)
     
     def id(self, *unnamed, **named):
@@ -348,19 +348,19 @@ class Getter(object):
                 where[f'get_{v}'] = True
         
         # debugging output
-        print('--- str_final_vars ---')
-        print(str_final_vars)
-        for q in subqueries:
-            print(q)
-            print(subqueries[q])
-        # print('--- query ---')
-        # print(query)
-        print('--- variables ---')
-        print(where)
+        # print('--- str_final_vars ---')
+        # print(str_final_vars)
+        # for q in subqueries:
+        #     print(q)
+        #     print(subqueries[q])
+        # # print('--- query ---')
+        # # print(query)
+        # print('--- variables ---')
+        # print(where)
 
         logging.debug(f'select={select} using={using} where={where} (exc)')
         response = self._nautobot.graphql.query(query=query, variables=where).json
-        logging.debug(response)
+        # logging.debug(response)
         if 'errors' in response:
             logging.error(f'got error: {response.get("errors")}')
             response = {}
@@ -427,15 +427,15 @@ class Getter(object):
         query = query.replace('{}','').replace('()','')
 
         # debugging output
-        print('--- str_final_vars ---')
-        print(str_final_vars)
-        for q in subqueries:
-            print(q)
-            print(subqueries[q])
-        print('--- query ---')
-        print(query)
-        print('--- variables ---')
-        print(variables)
+        # print('--- str_final_vars ---')
+        # print(str_final_vars)
+        # for q in subqueries:
+        #     print(q)
+        #     print(subqueries[q])
+        # print('--- query ---')
+        # print(query)
+        # print('--- variables ---')
+        # print(variables)
 
         response = self._nautobot.graphql.query(query=query, variables=variables).json
         # logging.debug(response)
