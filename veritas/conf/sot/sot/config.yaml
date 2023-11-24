@@ -102,6 +102,7 @@ queries:
           config_context @include(if: $get_config_context)
           _custom_field_data @include(if: $get_cf)
           interfaces @include(if: $get_interfaces) {
+            id
             name
             device {
               name
@@ -246,6 +247,7 @@ queries:
         _custom_field_data @include(if: $get__custom_field_data)
         custom_field_data : _custom_field_data @include(if: $get_custom_field_data)
         interfaces (__interfaces_params__) @include(if: $get_interfaces) {
+          id
           name
           description
           enabled
@@ -388,6 +390,7 @@ queries:
           config_context @include(if: $get_config_context)
           _custom_field_data @include(if: $get_cf)
           interfaces (__interfaces_params__) @include(if: $get_interfaces) {
+            id
             name
             device {
               name
