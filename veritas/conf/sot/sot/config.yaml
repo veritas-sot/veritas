@@ -190,21 +190,25 @@ queries:
 
   nb.devices: >
     query Devices(
-      $get_id: Boolean = false, 
-      $get_name: Boolean = false, 
-      $get_hostname: Boolean = true, 
-      $get_interfaces: Boolean = false, 
-      $get_location: Boolean = false, 
-      $get_primary_ip4: Boolean = false, 
-      $get_role: Boolean = false, 
-      $get_device_type: Boolean = false, 
-      $get_platform: Boolean = false, 
-      $get_tags: Boolean = false, 
-      $get_serial: Boolean = false, 
-      $get_config_context: Boolean = false, 
+      $get_asset_tag: Boolean = false,
       $get_cf: Boolean = false,
       $get_custom_field_data: Boolean = false,
       $get__custom_field_data: Boolean = false,
+      $get_config_context: Boolean = false, 
+      $get_device_type: Boolean = false, 
+      $get_hostname: Boolean = true, 
+      $get_id: Boolean = false, 
+      $get_interfaces: Boolean = false, 
+      $get_location: Boolean = false, 
+      $get_name: Boolean = false, 
+      $get_primary_ip4: Boolean = false, 
+      $get_platform: Boolean = false, 
+      $get_position: Boolean = false,
+      $get_rack: Boolean = false,
+      $get_role: Boolean = false, 
+      $get_serial: Boolean = false,
+      $get_status: Boolean = false,
+      $get_tags: Boolean = false, 
       $get_tenant: Boolean = false,
       __query_vars__
     ) {
@@ -213,21 +217,34 @@ queries:
         name @include(if: $get_name)
         hostname: name @include(if: $get_hostname)
         primary_ip4 @include(if: $get_primary_ip4) {
+          id
+          ip_version
           address
+          description
+          mask_length
+          dns_name
+          interfaces {
+            id
+            name
+          }
         }
         role @include(if: $get_role) {
+          id
           name
         }
         device_type @include(if: $get_device_type) {
+          id
           model
         }
         platform @include(if: $get_platform) {
+          id
           name
           manufacturer {
             name
           }
         }
         tags @include(if: $get_tags) {
+          id
           name
           content_types {
             id
@@ -236,16 +253,31 @@ queries:
           }
         }
         tenant @include(if: $get_tenant) {
+            id
             name
             tenant_group {
               name
             }
         }
-        serial @include(if: $get_serial)
+        rack @include(if: $get_rack) {
+          id
+          name
+        }
+        location @include(if: $get_location) {
+          id
+          name
+        }
+        status @include(if: $get_status) {
+          id
+          name
+        }
+        asset_tag @include(if: $get_asset_tag)
         config_context @include(if: $get_config_context)
         _custom_field_data @include(if: $get_cf)
         _custom_field_data @include(if: $get__custom_field_data)
         custom_field_data : _custom_field_data @include(if: $get_custom_field_data)
+        position @include(if: $get_position)
+        serial @include(if: $get_serial)
         interfaces (__interfaces_params__) @include(if: $get_interfaces) {
           id
           name
@@ -307,9 +339,6 @@ queries:
           member_interfaces {
             name
           }
-        }
-        location @include(if: $get_location) {
-          name
         }
       }
     }
