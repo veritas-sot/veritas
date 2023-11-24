@@ -4,6 +4,7 @@ import yaml
 import os
 import getpass
 import pytricia
+import hashlib
 
 
 def get_value_from_dict(dictionary, keys):
@@ -151,3 +152,15 @@ def get_prefix_path(prefixe, ip):
         prefix_path.append(parent)
         parent = pyt.parent(parent)
     return prefix_path[::-1]
+
+def calculate_md5(row):
+    data = ""
+    for d in row:
+        if isinstance(d, list):
+            my_list = ''.join(d)
+            data += my_list
+        elif d is None or d == 'null':
+            pass
+        else:
+            data += d
+    return hashlib.md5(data.encode('utf-8')).hexdigest()
