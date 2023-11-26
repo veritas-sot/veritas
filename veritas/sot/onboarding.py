@@ -143,49 +143,21 @@ class Onboarding:
         if device and len(self._vlans) > 0:
             self._add_vlans_to_nautobot()
 
-        virtual_interfaces = []
-        physical_interfaces = []
-        for interface in self._interfaces:
-            if interface and 'port-channel' in interface['name'].lower():
-                virtual_interfaces.append(interface)
-            else:
-                physical_interfaces.append(interface)
+        # now add the interfaces of this device
+        self.add_interfaces(device=device, interfaces=properties.get('interfaces'))
 
-        # add interface(s) to device
-        logging.debug(f'summary: adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
-        if device and len(self._interfaces) > 0:
-            v_response = self._add_interfaces_to_nautobot(device, virtual_interfaces)
-            p_response = self._add_interfaces_to_nautobot(device, physical_interfaces)
-            for interface in self._interfaces:
-                ipv4 = interface.get('ipv4')
-                if ipv4:
-                    logging.debug(f'found IPv4 {ipv4} on device {device}')
-                    if self._add_prefix:
-                        prefix = self._add_prefix_to_nautobot()
-
-                    ip_address = self._add_ipv4_to_nautbot(device, ipv4)
-                    if self._assign_ip:
-                        nb_interface = self._nautobot.dcim.interfaces.get(
-                            device_id=device.id,
-                            name=interface.get('name'))
-                        if nb_interface:
-                            assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
-                            logging.debug(f'assigned IPv4 {ipv4} on device {device} / nb_interface')
-                        else:
-                            logging.error(f'could not get interface {device.name}/{interface.get("name")}')
-        
         return device
 
     def add_interfaces(self, *unnamed, **named):
         """add interfaces to nautobot"""
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-
         v_response = p_response = prefix = assign = True
 
         # get device object
         device = properties.get('device')
         interfaces = properties.get('interfaces')
 
+        # now add the virtual and physical interfaces
         virtual_interfaces = []
         physical_interfaces = []
         for interface in interfaces:
@@ -193,30 +165,35 @@ class Onboarding:
                 virtual_interfaces.append(interface)
             else:
                 physical_interfaces.append(interface)
-
-        # add interface(s) to device
         logging.debug(f'summary: adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
+
         if device and len(interfaces) > 0:
             v_response = self._add_interfaces_to_nautobot(device, virtual_interfaces)
             p_response = self._add_interfaces_to_nautobot(device, physical_interfaces)
+            # the interfaces were added; now add the IP addresses of ALL interfaces
             for interface in interfaces:
-                ipv4 = interface.get('ipv4')
-                if ipv4:
-                    logging.debug(f'found IPv4 {ipv4} on device {device}/{interface.get("name")}')
+                ip_addresses = interface.get('ip_addresses',[])
+                # an interface can have more than one IP, so it is a list of IPs!!!
+                if len(ip_addresses) > 0:
+                    logging.debug(f'found {len(ip_addresses)} IP(s) on device {device}/{interface.get("name")}')
                     if self._add_prefix:
-                        prefix = self._add_prefix_to_nautobot()
+                        prefix = self._add_prefix_to_nautobot(ip_addresses)
 
-                    ip_address = self._add_ipv4_to_nautbot(device, ipv4)
-                    if self._assign_ip:
+                    added_addresses = self._add_ipaddress_to_nautbot(device, ip_addresses)
+                    if len(added_addresses) > 0:
+                        # get interface object from nautobot
                         nb_interface = self._nautobot.dcim.interfaces.get(
-                            device_id=device.id,
-                            name=interface.get('name'))
-                        if nb_interface:
-                            assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
-                            logging.debug(f'assigned IPv4 {ipv4} on device {device} / nb_interface')
-                        else:
-                            logging.error(f'could not get interface {device.name}/{interface.get("name")}')
-        
+                                    device_id=device.id,
+                                    name=interface.get('name'))
+                        for ip_address in added_addresses:
+                            if self._assign_ip:
+                                if nb_interface:
+                                    assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
+                                    logging.debug(f'assigned IPv4 {ip_address.display} on device {device} / nb_interface')
+                                else:
+                                    logging.error(f'could not get interface {device.name}/{interface.get("name")}')
+
+        # what value should we return?
         return v_response and p_response and prefix and assign
 
     # ---------- internal methods ----------
@@ -288,39 +265,71 @@ class Onboarding:
                     success = False
             return success
 
-    def _add_prefix_to_nautobot(self, ipv4):
+    def _add_prefix_to_nautobot(self, ip_addresses):
         """add prefix to nautobot"""
-        if not '/' in ipv4:
-            logging.error(f'cannot add prefix to nautobot; no mask found in primary_ipv4')
-        ip = IPNetwork(ipv4)
+        added_prefixe = []
 
-        logging.debug(f'network={ip.network} prefixlen={ip.prefixlen}')
-        properties = {'prefix': f'{ip.network}/{ip.prefixlen}',
-                      'status': {'name': 'Active'}}
-        try:
-            return self._nautobot.ipam.prefixes.create(properties)
-        except Exception as exc:
-            logging.error(exc)
-        return False
+        for ipaddress in ip_addresses:
+            parent = ipaddress.get('parent')
+            if not parent:
+                success = False
+            properties = {
+                'prefix': parent.get('prefix'),
+                'namespace': parent.get('namespace',{}).get('name'),
+                'status': {'name': 'Active'}
+            }
+            try:
+                added_prefixe.append(self._nautobot.ipam.prefixes.create(properties))
+            except Exception as exc:
+                logging.error(f'could not add prefix to nautobot; got {exc}')
 
-    def _add_ipv4_to_nautbot(self, device, ipv4):
-        """add IPv4 to nautobot"""
-        logging.debug(f'adding IPv4 {ipv4} to nautobot')
+        return added_prefixe            
 
-        properties = {'address': ipv4,
-                      'status': {'name': 'Active'},
-                      'namespace': 'Global'}
-        try:
-            return self._nautobot.ipam.ip_addresses.create(properties)
-        except Exception as exc:
-            if 'duplicate key value violates unique constraint' in str(exc):
-                logging.debug(f'this IP address already exists')
-                if self._use_ip_if_already_exists:
-                    return self._nautobot.ipam.ip_addresses.get(
-                        address=ipv4)
-            else:
-                logging.error(exc)
-        return None 
+        # do we still need this code?
+        # if not '/' in ipv4:
+        #     logging.error(f'cannot add prefix to nautobot; no mask found in primary_ipv4')
+        # ip = IPNetwork(ipv4)
+
+        # logging.debug(f'network={ip.network} prefixlen={ip.prefixlen}')
+        # properties = {'prefix': f'{ip.network}/{ip.prefixlen}',
+        #               'status': {'name': 'Active'}}
+
+        # try:
+        #     return self._nautobot.ipam.prefixes.create(properties)
+        # except Exception as exc:
+        #     logging.error(exc)
+        # return False
+
+    def _add_ipaddress_to_nautbot(self, device, addresses):
+        """add IP adrdress(es) to nautobot"""
+        added_addresses = []
+
+        # mandatory parameters are address, status and namespace
+        # we get the hldm (or part of it)
+        for address in addresses:
+            ip_address = address.get('address')
+            status = address.get('status', {'name': 'Active'})
+            namespace = address.get('parent',{}).get('namespace',{}).get('name','Global')
+
+            properties = {'address': ip_address,
+                          'status': status,
+                          'namespace': namespace}
+            if 'role' in address and address['role']:
+                properties.update({'role': address['role']})
+            if 'tags' in address and len(address['tags']) > 0:
+                properties.update({'tags': address['tags']})
+            try:
+                added_addresses.append(self._nautobot.ipam.ip_addresses.create(properties))
+                logging.debug(f'added IP {ip_address} to nautobot')
+            except Exception as exc:
+                if 'duplicate key value violates unique constraint' in str(exc):
+                    logging.debug(f'IP {ip_address} address already exists')
+                    if self._use_ip_if_already_exists:
+                        added_addresses.append(self._nautobot.ipam.ip_addresses.get(
+                                address=ip_address, namespace=namespace))
+                else:
+                    logging.error(exc)
+        return added_addresses 
 
     def _assign_ipaddress_to_interface(self, device, interface, ip_address):
         """assign IPv4 address to interface of device and set primary IPv4"""

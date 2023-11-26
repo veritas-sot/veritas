@@ -23,29 +23,30 @@ queries:
 
   nb.prefixes: >
     query Prefix(
-        $get_id: Boolean = false,
-        $get_prefix: Boolean = false,
-        $get_prefix_length: Boolean = false, 
-        $get_parent: Boolean = false,
-        $get_type: Boolean = false,
-        $get_description: Boolean = false,
-        $get_location: Boolean = false,
-        $get_ip_addresses: Boolean = false,
-        $get_tags: Boolean = false, 
-        $get_tenant: Boolean = false,
         $get_cf: Boolean = false,
         $get_custom_field_data: Boolean = false,
         $get__custom_field_data: Boolean = false,
-        $get_primary_ip4_for: Boolean = false,
-        $get_name: Boolean = false,
-        $get_hostname: Boolean = false,
-        $get_role: Boolean = false,
-        $get_device_type: Boolean = false,
-        $get_platform: Boolean = false,
-        $get_serial: Boolean = false,
-        $get_status: Boolean = false,
         $get_config_context: Boolean = false,
+        $get_device_type: Boolean = false,
+        $get_description: Boolean = false,
+        $get_hostname: Boolean = false,
+        $get_id: Boolean = false,
+        $get_ip_addresses: Boolean = false,
         $get_interfaces: Boolean = false,
+        $get_location: Boolean = false,
+        $get_name: Boolean = false,
+        $get_namespace: Boolean = false,
+        $get_parent: Boolean = false,
+        $get_platform: Boolean = false,
+        $get_primary_ip4_for: Boolean = false,
+        $get_prefix: Boolean = false,
+        $get_prefix_length: Boolean = false, 
+        $get_role: Boolean = false,
+        $get_serial: Boolean = false,
+        $get_status: Boolean = false,        
+        $get_tags: Boolean = false, 
+        $get_tenant: Boolean = false,
+        $get_type: Boolean = false,
         __query_vars__
       ) {
       prefixes (__prefixes_params__) {
@@ -54,6 +55,10 @@ queries:
         prefix_length @include(if: $get_prefix_length)
         parent @include(if: $get_parent) {
           prefix
+        }
+        namespace @include(if: $get_namespace) {
+          id
+          name
         }
         description @include(if: $get_description)
         type @include(if: $get_type)
@@ -70,14 +75,17 @@ queries:
           name @include(if: $get_name)
           hostname: name @include(if: $get_hostname)
           role @include(if: $get_role) {
+            id
             name
           }
           device_type @include(if: $get_device_type) {
+            id
             model
           }
           platform @include(if: $get_platform) {
             name
             manufacturer {
+              id
               name
             }
           }
@@ -92,11 +100,13 @@ queries:
           tenant @include(if: $get_tenant) {
             name
             tenant_group {
+              id
               name
             }
           }
           serial @include(if: $get_serial)
           status @include(if: $get_status) {
+            id
             name
           }
           config_context @include(if: $get_config_context)
@@ -286,17 +296,31 @@ queries:
           mac_address
           type
           mode
+          status {
+            id
+            name
+          }
           ip_addresses {
             address
+            status {
+              id
+              name
+            }
             role {
               id
             }
             tags {
+              id
               name
-              content_types {
+            }
+            parent {
+              id
+              network
+              prefix
+              prefix_length
+              namespace {
                 id
-                app_label
-                model
+                name
               }
             }
           }
@@ -310,14 +334,17 @@ queries:
             }
           }
           tagged_vlans {
+            id
             name
             vid
           }
           untagged_vlan {
+            id
             name
             vid
           }
           cable {
+            id
             termination_a_type
             status {
               name
@@ -325,6 +352,7 @@ queries:
             color
           }
           tags {
+            id
             name
             content_types {
               id
@@ -333,10 +361,12 @@ queries:
             }
           }
           lag {
+            id
             name
             enabled
           }
           member_interfaces {
+            id
             name
           }
         }
@@ -345,28 +375,28 @@ queries:
 
   nb.ipaddresses: >
     query IPadresses( 
-          $get_id: Boolean = false, 
-          $get_address: Boolean = false,
-          $get_description: Boolean = false,
-          $get_dns_name: Boolean = false,
-          $get_parent: Boolean = false,
-          $get_type: Boolean = false,
-          $get_name: Boolean = false, 
-          $get_hostname: Boolean = true, 
-          $get_interfaces: Boolean = false, 
-          $get_location: Boolean = false, 
-          $get_primary_ip4_for: Boolean = false, 
-          $get_role: Boolean = false, 
-          $get_device_type: Boolean = false, 
-          $get_platform: Boolean = false, 
-          $get_tags: Boolean = false,
-          $get_serial: Boolean = false,
-          $get_status:  Boolean = false,
-          $get_config_context: Boolean = false, 
-          $get_cf: Boolean = false,
-          $get_tenant: Boolean = false,
-          __query_vars__
-          ) {
+      $get_address: Boolean = false,
+      $get_config_context: Boolean = false, 
+      $get_cf: Boolean = false,
+      $get_description: Boolean = false,
+      $get_device_type: Boolean = false, 
+      $get_dns_name: Boolean = false,
+      $get_hostname: Boolean = true, 
+      $get_id: Boolean = false, 
+      $get_interfaces: Boolean = false, 
+      $get_location: Boolean = false, 
+      $get_name: Boolean = false, 
+      $get_parent: Boolean = false,
+      $get_platform: Boolean = false, 
+      $get_primary_ip4_for: Boolean = false, 
+      $get_role: Boolean = false, 
+      $get_serial: Boolean = false,
+      $get_status:  Boolean = false,
+      $get_tags: Boolean = false,
+      $get_tenant: Boolean = false,
+      $get_type: Boolean = false,
+      __query_vars__
+    ) {
       ip_addresses(__ipaddresses_params__) {
         id @include(if: $get_id)
         address @include(if: $get_address)
@@ -378,9 +408,14 @@ queries:
           name
         }
         parent @include(if: $get_parent) {
+          id
           network
           prefix
           prefix_length
+          namespace {
+            id
+            name
+          }
         } 
         primary_ip4_for(__primaryip4for_params__) @include(if: $get_primary_ip4_for) {
           id @include(if: $get_id)

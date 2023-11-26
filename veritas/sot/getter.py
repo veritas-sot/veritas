@@ -149,9 +149,9 @@ class Getter(object):
     def hldm(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
         
-        select = ['id','hostname','interfaces','location','primary_ip4','role',
-                  'custom_field_data', 'device_type','platform','tags','serial',
-                  'config_context', 'tenant']
+        select = ['id','name','status','interfaces','location','primary_ip4',
+                  'role', 'custom_field_data', 'device_type','platform','tags',
+                  'serial', 'config_context', 'tenant']
         using = 'nb.devices'
         where = {'name': properties.get('device')}
         return self.query(select=select, using=using, where=where)
