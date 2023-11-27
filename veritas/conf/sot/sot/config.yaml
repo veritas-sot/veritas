@@ -573,7 +573,43 @@ queries:
       $get_tags: Boolean = false,
       __query_vars__
     ) {
-      locations(__general_params__) @include(if: $get_locations) {name}
+      locations(__general_params__) @include(if: $get_locations) {
+        name
+        facility
+        description
+        physical_address
+        shipping_address
+        contact_name
+        contact_phone
+        contact_email
+        comments
+        parent {
+          id
+          name
+        }
+        children {
+          id
+          name
+        }
+        status {
+          id
+          name
+        }
+        asn
+        time_zone
+        location_type {
+          id
+          name
+        }
+        tenant {
+          id
+          name
+        }
+        tags {
+          id
+          name
+        }
+      }
       tags(__general_params__) @include(if: $get_tags) {
         name
         content_types {

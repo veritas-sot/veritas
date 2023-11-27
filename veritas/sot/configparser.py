@@ -15,6 +15,7 @@ class Configparser(object):
         self._sot = sot
         self._device_config = properties.get('config', None)
         self._output_format = properties.get('output_format', 'json')
+        self._empty_config = properties.get('empty_config', False)
         self._parser = None
         self._template = None
         self._template_filename = None
@@ -74,14 +75,6 @@ class Configparser(object):
         self._output_format = format
         return self
 
-    # def template(self, *unnamed, **named):
-    #     properties = tools.convert_arguments_to_properties(unnamed, named)
-    #     if 'file' in properties:
-    #         self._template_filename = properties.get('file')
-    #     if 'template' in properties:
-    #         self._template = properties.get('template')
-    #     return self
-
     def parse(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
 
@@ -101,6 +94,9 @@ class Configparser(object):
             self._save_naming()
             return True
         except Exception as exc:
+            if self._empty_config:
+                logging.debug(f'this is an empty config; return True')
+                return True
             logging.error(f'could not parse config {exc}')
             return None
 

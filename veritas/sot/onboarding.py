@@ -144,7 +144,10 @@ class Onboarding:
             self._add_vlans_to_nautobot()
 
         # now add the interfaces of this device
-        self.add_interfaces(device=device, interfaces=properties.get('interfaces'))
+        # either the interfaces are part of our properties or were
+        # configured using .interface(list_of_ifaces)
+        interfaces = properties.get('interfaces', self._interfaces)
+        self.add_interfaces(device=device, interfaces=interfaces)
 
         return device
 
@@ -152,10 +155,10 @@ class Onboarding:
         """add interfaces to nautobot"""
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         v_response = p_response = prefix = assign = True
-
         # get device object
         device = properties.get('device')
         interfaces = properties.get('interfaces')
+        logging.debug(f'adding interfaces to {device}')
 
         # now add the virtual and physical interfaces
         virtual_interfaces = []
