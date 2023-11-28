@@ -111,7 +111,7 @@ class Getter(object):
                          .where()
 
         all_vlans = self._sot.select('id, vid, location') \
-                         .using('nb.ipam.vlan') \
+                         .using('nb.vlans') \
                          .where()
         
         all_sites = self._sot.select('locations') \

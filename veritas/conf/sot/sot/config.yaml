@@ -574,6 +574,7 @@ queries:
       __query_vars__
     ) {
       locations(__general_params__) @include(if: $get_locations) {
+        id
         name
         facility
         description
@@ -611,6 +612,7 @@ queries:
         }
       }
       tags(__general_params__) @include(if: $get_tags) {
+        id
         name
         content_types {
           id
