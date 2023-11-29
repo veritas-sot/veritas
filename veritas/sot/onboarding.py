@@ -199,6 +199,24 @@ class Onboarding:
         # what value should we return?
         return v_response and p_response and prefix and assign
 
+    def set_primary_address(self, address, device):
+        """set primary address on device"""
+
+        if isinstance(address, str):
+            ip_address = self._nautobot.ipam.ip_addresses.get(address=address)
+        else:
+            ip_address = address
+        if not isinstance(ip_address, IpAddresses):
+            logging.error(f'no valid ip address found')
+            return False
+        
+        try:
+            return device.update({'primary_ip4': ip_address.id})
+        except Exception as exc:
+            if 'is not assigned to this device' in str(exc):
+                logging.error(f'the address {ip_address.display} is not assigned to {device.name}')
+                return False
+
     # ---------- internal methods ----------
 
     def _add_device_to_nautobot(self, device_properties):
