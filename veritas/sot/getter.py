@@ -343,7 +343,7 @@ class Getter(object):
         # select are values the user has SELECTed
         for v in select:
             if v.startswith('cf_'):
-                where['get__custom_field_data'] = True
+                where['get_custom_field_data'] = True
             else:
                 where[f'get_{v}'] = True
         
