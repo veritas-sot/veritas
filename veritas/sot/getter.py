@@ -65,6 +65,24 @@ class Getter(object):
         self._nautobot = self._sot.open_nautobot()
         return self._nautobot.dcim.devices.get(name=name)
 
+    def primary_ip4(self, name, cast=False):
+        """return primary IP4 of the device"""
+        self._nautobot = self._sot.open_nautobot()
+        device = self._nautobot.dcim.devices.get(name=name)
+        if cast:
+            return device.primary_ip4.display
+        else:
+            return device.primary_ip4.display
+
+    def primary_ip6(self, name, cast=False):
+        """return primary IP6 of the device"""
+        self._nautobot = self._sot.open_nautobot()
+        device = self._nautobot.dcim.devices.get(name=name)
+        if cast:
+            return device.primary_ip6.display
+        else:
+            return device.primary_ip6
+
     def interface(self, *unnamed, **named):
         """returns interface of device"""
         properties = tools.convert_arguments_to_properties(unnamed, named)
@@ -292,7 +310,7 @@ class Getter(object):
         query = self._sot.get_config().get('queries',{}).get(using)
 
         # get final variables for our main parameter
-        query_final_vars, cf_fields_types = self.dict_to_query_var(where, "")
+        query_final_vars, cf_fields_types = self._dict_to_query_var(where, "")
 
         # loop through where statement and put values to subqueries and adjust custom field types
         for whr in where:
@@ -404,7 +422,7 @@ class Getter(object):
 
         for sq in where:
             prefix = f'{sq}_' if sq != 'devices' else ""
-            qfv, cf_fields_types = self.dict_to_query_var(where[sq], prefix)
+            qfv, cf_fields_types = self._dict_to_query_var(where[sq], prefix)
             query_final_vars += qfv
             sq_name = f'__{sq}_params__'
             for key,value in where[sq].items():
@@ -456,7 +474,7 @@ class Getter(object):
             data = dict(response).get('data',{}).get('devices',{})
         return data
 
-    def dict_to_query_var(self, data, prefix):
+    def _dict_to_query_var(self, data, prefix):
         """returns list containing name of paramter and type and cf field types"""
         response = []
         cf_fields_types = None

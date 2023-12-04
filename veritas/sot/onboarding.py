@@ -155,7 +155,8 @@ class Onboarding:
         """add interfaces to nautobot"""
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         v_response = p_response = prefix = assign = True
-        # get device object
+
+        # get device object and interface properties
         device = properties.get('device')
         interfaces = properties.get('interfaces')
         logging.debug(f'adding interfaces to {device}')
@@ -171,6 +172,7 @@ class Onboarding:
         logging.debug(f'summary: adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
 
         if device and len(interfaces) > 0:
+            # add interfces to nautobot
             v_response = self._add_interfaces_to_nautobot(device, virtual_interfaces)
             p_response = self._add_interfaces_to_nautobot(device, physical_interfaces)
             # the interfaces were added; now add the IP addresses of ALL interfaces
@@ -198,6 +200,47 @@ class Onboarding:
 
         # what value should we return?
         return v_response and p_response and prefix and assign
+
+    def update_interfaces(self, *unnamed, **named):
+        """update interfaces(s) of device"""
+        properties = tools.convert_arguments_to_properties(*unnamed, **named)
+
+        # get device object and interface properties
+        device = properties.get('device')
+        interfaces = properties.get('interfaces')
+        logging.debug(f'updating interfaces of {device}')
+
+        if not device or len(interfaces) == 0:
+            logging.debug(f'either no device found or len(interfaces) == 0')
+            return False
+
+        for interface in interfaces:
+            # get interface object from nautobot
+            nb_interface = self._nautobot.dcim.interfaces.get(
+                            device_id=device.id,
+                            name=interface.get('name'))
+            nb_interface.update(interface)
+            # remove ALL assigments
+            self._remove_all_assignments(device, nb_interface)
+
+            ip_addresses = interface.get('ip_addresses',[])
+            # an interface can have more than one IP, so it is a list of IPs!!!
+            # we are now (re)adding all assigments
+            if len(ip_addresses) > 0:
+                logging.debug(f'found {len(ip_addresses)} IP(s) on device {device}/{interface.get("name")}')
+                if self._add_prefix:
+                    prefix = self._add_prefix_to_nautobot(ip_addresses)
+                
+                added_addresses = self._add_ipaddress_to_nautbot(device, ip_addresses)
+                if len(added_addresses) > 0:
+                    for ip_address in added_addresses:
+                        if self._assign_ip:
+                            if nb_interface:
+                                assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
+                                logging.debug(f'assigned IPv4 {ip_address.display} on device {device} / nb_interface')
+                            else:
+                                logging.error(f'could not get interface {device.name}/{interface.get("name")}')
+        return True
 
     def set_primary_address(self, address, device):
         """set primary address on device"""
@@ -374,4 +417,22 @@ class Onboarding:
             except Exception as exc:
                 logging.error(f'could not set primary IPv4 on {device}')
 
-        return assigned 
+        return assigned
+
+    def _remove_all_assignments(self, device, interface):
+        """remove all assignments of any IP"""
+
+        logging.debug(f'removing ALL assigments on {device.display}/{interface.display}')
+        ip_addresses = self._nautobot.ipam.ip_addresses.filter(device_id=[device.id], interfaces=interface.display)
+        for ip in ip_addresses:
+            id_list = self._nautobot.ipam.ip_address_to_interface.filter(
+                interface=interface.display, 
+                ip_address=ip.id)
+            response = True
+            for assignment in id_list:
+                try:
+                    assignment.delete()
+                except Exception as exc:
+                    logging.error(exc)
+                    response = False
+        return response
