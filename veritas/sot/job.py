@@ -6,6 +6,7 @@ import sys
 import textfsm
 from veritas.sot import sot as sot
 from veritas.inventory import veritasInventory
+from vertitas.tools import tools
 from nornir import InitNornir
 from nornir.core.plugins.inventory import InventoryPluginRegister
 from nornir_napalm.plugins.tasks import napalm_get, napalm_ping
@@ -23,7 +24,7 @@ class Job(object):
 
     def __init__(self, sot, *unnamed, **named):
         logging.debug(f'Creating JOB object')
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         InventoryPluginRegister.register("veritas-inventory", veritasInventory.VeritasInventory)
 
         self._sot = sot
@@ -43,7 +44,7 @@ class Job(object):
     def init_nornir(self, *unnamed, **named):
         # returns the nornir object so that the user can 
         # run its own tasks
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         if not self._nornir:
             self._init_nornir(properties)
         return self._nornir 
@@ -56,45 +57,16 @@ class Job(object):
         else:
             raise AttributeError (f'unknown attribute')
 
-    def __convert_arguments_to_properties(self, *unnamed, **named):
-        """ converts unnamed (dict) and named arguments to a single property dict """
-        properties = {}
-        if len(unnamed) > 0:
-            for param in unnamed:
-                if isinstance(param, dict):
-                    for key,value in param.items():
-                        properties[key] = value
-                elif isinstance(param, str):
-                    # it is just a text like log('something to log')
-                    return param
-                elif isinstance(param, tuple):
-                    for tup in param:
-                        if isinstance(tup, dict):
-                            for key,value in tup.items():
-                                properties[key] = value
-                        elif isinstance(tup, str):
-                            return tup
-                        elif isinstance(tup, list):
-                            return tup
-                elif isinstance(param, list):
-                    return param
-                else:
-                    logging.error(f'cannot use paramater {param} / {type(param)} as value')
-        for key,value in named.items():
-                properties[key] = value
-        
-        return properties
-
     def open_nautobot(self):
         if self._nautobot is None:
             self._nautobot = api(self._sot.get_nautobot_url(), token=self._sot.get_token())
 
     def on(self, *unnamed, **named):
-        self.__on = self.__convert_arguments_to_properties(unnamed, named)
+        self.__on = tools.convert_arguments_to_properties(unnamed, named)
         return self
 
     def set(self, *unnamed, **named):
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
 
         self.__username = properties.get('username')
         self.__password = properties.get('password')
@@ -108,24 +80,24 @@ class Job(object):
 
     def add_data(self, *unnamed, **named):
         # we expect a list and add this list to our inventory data later
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         self.__data = [properties] if isinstance(properties, str) else properties
         return self
 
     def add_group(self, *unnamed, **named):
         # we expect a dict
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         self.__groups = properties
         return self
 
     def add_to_group(self, *unnamed, **named):
         # we expect a list
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         self.__host_groups = [properties] if isinstance(properties, str) else properties
         return self
 
     def ping(self,  *unnamed, **named):
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         destination = properties.get('destination')
         count = properties.get('count',3)
 
@@ -140,7 +112,7 @@ class Job(object):
     def get_config(self, *unnamed, **named):
 
         # get properties
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         config = properties if len(properties) > 0 else "running"
         logging.debug(f'getting {config} config')
 
@@ -185,7 +157,7 @@ class Job(object):
         if self._nornir is not None:
             return 
 
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         _data = properties.get('data', self.__data)
         _host_groups = properties.get('data', self.__host_groups)
         _groups = properties.get('groups', self.__groups)
