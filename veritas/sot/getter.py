@@ -60,10 +60,14 @@ class Getter(object):
 
     # -----===== user command =====-----
 
-    def device(self, name):
+    def device(self, name_or_id, by_id=False):
         """returns device"""
+
         self._nautobot = self._sot.open_nautobot()
-        return self._nautobot.dcim.devices.get(name=name)
+        if by_id:
+            return self._nautobot.dcim.devices.get(id=name_or_id)
+        else:
+            return self._nautobot.dcim.devices.get(name=name_or_id)
 
     def primary_ip4(self, name, cast=False):
         """return primary IP4 of the device"""

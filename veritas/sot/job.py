@@ -6,7 +6,7 @@ import sys
 import textfsm
 from veritas.sot import sot as sot
 from veritas.inventory import veritasInventory
-from vertitas.tools import tools
+from veritas.tools import tools
 from nornir import InitNornir
 from nornir.core.plugins.inventory import InventoryPluginRegister
 from nornir_napalm.plugins.tasks import napalm_get, napalm_ping
