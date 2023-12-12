@@ -416,7 +416,35 @@ queries:
             id
             name
           }
-        } 
+        }
+        # show ALL interfaces the IP address is assigned on
+        interfaces (__interfaces_params__) @include(if: $get_interfaces) {
+            id
+            name
+            device {
+              name
+            }
+            description
+            enabled
+            mac_address
+            type
+            mode
+            ip_addresses {
+              address
+              role {
+                id
+              }
+              tags {
+                name
+                content_types {
+                  id
+                  app_label
+                  model
+                }
+              }
+            }
+        }
+        # now ALL data for the primary IP device
         primary_ip4_for(__primaryip4for_params__) @include(if: $get_primary_ip4_for) {
           id @include(if: $get_id)
           name @include(if: $get_name)
