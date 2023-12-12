@@ -194,7 +194,7 @@ class Onboarding:
                             if self._assign_ip:
                                 if nb_interface:
                                     assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
-                                    logging.debug(f'assigned IPv4 {ip_address.display} on device {device} / nb_interface')
+                                    logging.debug(f'assigned IPv4 {ip_address} on device {device} / nb_interface')
                                 else:
                                     logging.error(f'could not get interface {device.name}/{interface.get("name")}')
 
