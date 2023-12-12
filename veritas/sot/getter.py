@@ -60,14 +60,30 @@ class Getter(object):
 
     # -----===== user command =====-----
 
-    def device(self, name_or_id, by_id=False):
-        """returns device"""
+    def device(self, name, by_id=False):
+        """return device by using its name"""
+        # name can be either the name (in most cases) or the id
 
         self._nautobot = self._sot.open_nautobot()
         if by_id:
-            return self._nautobot.dcim.devices.get(id=name_or_id)
+            return self._nautobot.dcim.devices.get(id=name)
         else:
-            return self._nautobot.dcim.devices.get(name=name_or_id)
+            return self._nautobot.dcim.devices.get(name=name)
+
+    def device_by_ip(self, ip, cast=False):
+        """return device by using its primary IP"""
+        self._nautobot = self._sot.open_nautobot()
+        interfaces = self.query(select=['interfaces'], 
+                            using='nb.ipaddresses',
+                            where={'address': ip}, 
+                            mode='sql')[0].get('interfaces')
+        if interfaces and len(interfaces) > 0:
+            device = interfaces[0].get('device',{}).get('name')
+            if cast:
+                return device
+            else:
+                return self._nautobot.dcim.devices.get(name=device)
+        return None
 
     def primary_ip4(self, name, cast=False):
         """return primary IP4 of the device"""
@@ -76,7 +92,7 @@ class Getter(object):
         if cast:
             return device.primary_ip4.display
         else:
-            return device.primary_ip4.display
+            return device.primary_ip4
 
     def primary_ip6(self, name, cast=False):
         """return primary IP6 of the device"""
