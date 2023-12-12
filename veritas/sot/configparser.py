@@ -21,9 +21,6 @@ class Configparser(object):
         self._template_filename = None
         self._sot_config = sot.get_config()
         self._could_not_parse = False
-        # naming is used to save the exact spelling of the interface
-        # nxos and ios differs using Port-channel/Port-Channel/port-channel
-        self._naming = {}
         filename = "%s/%s" % (
             os.path.abspath(os.path.dirname(__file__)),
             self._sot_config['configparser'].get('config') 
@@ -64,13 +61,6 @@ class Configparser(object):
         
         return ttp_template
 
-    def _save_naming(self):
-        for interface in self._parsed_config[0].get('interfaces', {}):
-            if 'Port-channel' in interface:
-                self._naming["port-channel"] = "Port-channel"
-            if 'port-channel' in interface:
-                self._naming["port-channel"] = "port-channel"
-
     def format(self, format):
         self._output_format = format
         return self
@@ -91,7 +81,6 @@ class Configparser(object):
             self._parser = ttp(data=device_config, template=ttp_template)
             self._parser.parse()
             self._parsed_config = self._parser.result(format='raw')[0]
-            self._save_naming()
             return True
         except Exception as exc:
             if self._empty_config:
@@ -105,6 +94,15 @@ class Configparser(object):
 
         format = properties.get('output_format', self._output_format)
         return self._parser.result(format=format)[0]
+
+    def get_fqdn(self):
+        """return FQDN of device"""
+        domain = self._parsed_config[0].get('global', {}).get('fqdn',{}).get('domain_name',"")
+        hostname = self._parsed_config[0].get('global', {}).get('fqdn',{}).get('hostname')
+        if domain:
+            return f'{hostname}.{domain}'
+        else:
+            return hostname
 
     def get_interface_name_by_address(self, address):
         interfaces = self._parsed_config[0].get('interfaces', {})
@@ -143,9 +141,6 @@ class Configparser(object):
                                         'name': 'trunked VLAN'})
 
         return global_vlans, svi, trunk_vlans
-    
-    def get_name(self, name):
-        return self._naming.get(name.lower(), name)
 
     def get_device_config(self):
         return self._device_config
@@ -184,45 +179,6 @@ class Configparser(object):
                 response.append(line)
 
         return response
-
-    def _find_in_line(self, key, lookup, value, line):
-        """
-        n - not equal to (negation)
-        ic - case-insensitive contains (*)
-        c - case-sensitive contains (*)
-        ie - case-insensitive exact match (*)
-
-        nic - negated case-insensitive contains
-        isw - case-insensitive starts-with
-        nisw - negated case-insensitive starts-with
-        iew - case-insensitive ends-with
-        niew - negated case-insensitive ends-with
-        nie - negated case-insensitive exact match
-        re - case-sensitive regular expression match
-        nre - negated case-sensitive regular expression match
-        ire - case-insensitive regular expression match
-        nire - negated case-insensitive regular expression match
-        """
-
-        # logging.debug(f'key: {key} lookup: {lookup} value: {value} line: {line}')
-        if key == 'match':
-            if lookup == "ie":
-                # case-insensitive exact match
-                if line.lower() == value.lower():
-                    return True
-            elif lookup == "ic":
-                # case-insensitive contains
-                if value.lower() in line.lower():
-                    return True
-            elif lookup == "c":
-            # case-sensitive contains
-                if value in line:
-                    return True
-            else:
-                if line == value:
-                    return True
-
-        return False
 
     def find_in_global(self, properties):
         key = None
@@ -294,3 +250,44 @@ class Configparser(object):
 
         logging.debug(f'matched_on={matched_on}')
         return matched_on
+
+# internals
+
+    def _find_in_line(self, key, lookup, value, line):
+        """
+        n - not equal to (negation)
+        ic - case-insensitive contains (*)
+        c - case-sensitive contains (*)
+        ie - case-insensitive exact match (*)
+
+        nic - negated case-insensitive contains
+        isw - case-insensitive starts-with
+        nisw - negated case-insensitive starts-with
+        iew - case-insensitive ends-with
+        niew - negated case-insensitive ends-with
+        nie - negated case-insensitive exact match
+        re - case-sensitive regular expression match
+        nre - negated case-sensitive regular expression match
+        ire - case-insensitive regular expression match
+        nire - negated case-insensitive regular expression match
+        """
+
+        # logging.debug(f'key: {key} lookup: {lookup} value: {value} line: {line}')
+        if key == 'match':
+            if lookup == "ie":
+                # case-insensitive exact match
+                if line.lower() == value.lower():
+                    return True
+            elif lookup == "ic":
+                # case-insensitive contains
+                if value.lower() in line.lower():
+                    return True
+            elif lookup == "c":
+            # case-sensitive contains
+                if value in line:
+                    return True
+            else:
+                if line == value:
+                    return True
+
+        return False
