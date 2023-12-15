@@ -356,12 +356,24 @@ class Getter(object):
 
         # convert string ["val1","val2",....,"valn"] to list
         for key,val in dict(where).items():
-            if isinstance(val, list):
+            # logging.debug(f'key: {key} val: {val} type(val): {type(val)}')
+            if isinstance(val, str):
+                # convert Boolean to True/False
+                if cf_fields_types and cf_fields_types.get(key.replace('cf_',''),{}).get('type') == 'Boolean (true/false)':
+                    if 'true' in val.lower():
+                        where[key] = True
+                    else:
+                        where[key] = False
+            elif isinstance(val, list):
                 # this is the only place where we can convert a list to a string
                 # keys like prefix or within_include require a string
                 # in this case we convert the list to a string
                 # when we use simple queries we get the values as string
                 # but using logical query we get the values as list
+                #
+                # when using a logical query we get the 'where' clause as list
+                # in this case we have to convert the list to True/False if the custom_field
+                # is of this type
                 if key in ['within_include', 'changed_object_type', 'prefix']:
                     where[key] = val[0]
                 # when using custom fields we have to convert the values as well
@@ -369,6 +381,11 @@ class Getter(object):
                     if len(val) > 1:
                         logging.erro(f'parameter {key} does not support [String]')
                     where[key] = val[0]
+                elif cf_fields_types and cf_fields_types.get(key.replace('cf_',''),{}).get('type') == 'Boolean (true/false)':
+                    if 'true' in val[0].lower():
+                        where[key] = True
+                    else:
+                        where[key] = False
 
         str_final_vars = ",".join(query_final_vars)
         # the query variables
@@ -495,7 +512,7 @@ class Getter(object):
         return data
 
     def _dict_to_query_var(self, data, prefix):
-        """returns list containing name of paramter and type and cf field types"""
+        """return list containing name of paramter and type and cf field types"""
         response = []
         cf_fields_types = None
 
@@ -506,12 +523,16 @@ class Getter(object):
             if cf_name.startswith('cf_'):
                 if not cf_fields_types:
                     cf_fields_types = self.get.custom_fields_type()
+
+                # set default value to String
                 cf_type = "String"
                 if cf_name.replace('cf_','') in cf_fields_types:
-                    c = cf_fields_types[cf_name.replace('cf_','')]['type']
-                cf_type = "String" if c == "Text" else "List"
-                if cf_type == "String":
+                    cf_type = cf_fields_types[cf_name.replace('cf_','')]['type']
+
+                if cf_type == "text":
                     response.append(f'${prefix}{whr}: String')
+                elif cf_type == "Boolean (true/false)":
+                    response.append(f'${prefix}{whr}: Boolean')
                 else:
                     response.append(f'${prefix}{whr}: [String]')
             else:
