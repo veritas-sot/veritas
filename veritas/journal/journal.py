@@ -1,87 +1,79 @@
 import logging
-import uuid
 import os
 import yaml
+import psycopg2
+from datetime import datetime, timezone
 from ..tools import tools
 
 
-CONFIG_FILE = "../conf/journal/config.yaml"
-
 class Journal(object):
 
-    def __init__(self, id=None, journal_dir=None, write_at_once=False):
+    def __init__(self, uuid=None):
         self.__basedir = os.path.abspath(os.path.dirname(__file__))
-        self.__metadata = {}
-        self.__next_id = 0
-        self.__write_at_once = write_at_once
+        self.__uuid = uuid
+        self.__conn = None
+        self.__cursor = None
 
-        with open(f'{self.__basedir}/{CONFIG_FILE}') as f:
-            self._journal_config = yaml.safe_load(f.read())
+        # connect to database
+        self._connect_to_db()
 
-        try:
-            filename = "%s/%s" % (
-                os.path.abspath(os.path.dirname(__file__)),
-                self._sot_config['journal'].get('config') 
-            )
-            self._journal_config = yaml.safe_load(f.read())
-        except Exception as exc:
-            logging.error("could not parse yaml file %s; exception: %s" % (filename, exc))
+    def new(self, app=None):
+        """create new journal entry"""
+        logging.debug(f'creating new journal entry')
 
-        # make a UUID based on the host address and current time
-        self.__uuid = id if id else uuid.uuid1()
-        jd = journal_file if journal_dir else self._journal_config.get('journal_dir','./journals')
+        sql = """INSERT INTO metadata(status)
+             VALUES('active') RETURNING uuid;"""
+        self.__cursor.execute(sql, ())
 
-        # if an absolut path is configured use this path
-        if jd.startswith('/'):
-            self.__journal_dir = f'{jd}/{self.__uuid}'
-        else:
-            self.__journal_dir = f'{self.__basedir}/{jd}/{self.__uuid}'
+        # get the generated uuid back
+        self.__uuid = self.__cursor.fetchone()[0]
+        logging.debug(f'this journal entry has uuid {self.__uuid}')
 
-        logging.debug(f'this journal has the UIID {self.__uuid}')
-        logging.debug(f'using journal_dir {self.__journal_dir}')
+        # commit the changes to the database
+        self.__conn.commit()
 
-        # check if directory exists
-        if not os.path.exists(self.__journal_dir):
-            logging.debug(f'journal does not exists, creating it')
-            os.makedirs(self.__journal_dir)
-
-        # read metadata
-        self._read_metadata()
-
-    def get_uuid(self):
+        # return UUID back to user
         return self.__uuid
 
-    def add(self, *unnamed, **named):
-        properties = tools.convert_arguments_to_properties(unnamed, named)
-        self.__metadata['logs'].append({'id': self.__next_id,
-                                        'log': properties.get('log','no log')})
-        self._write_properties(properties)
-        self.__metadata['last_id'] = self.__next_id
-        self.__next_id += 1
-        if self.__write_at_once:
-            self._write_metadata()
-
-    def send(self, name):
-        pass
-
     def close(self):
-        self._write_metadata()
+        """close existing journal entry"""
+        logging.debug(f'closing journal {self.__uuid}')
+
+        sql = """UPDATE metadata SET status = %s WHERE uuid = %s"""
+        response = self.__cursor.execute(sql, ('closed', self.__uuid))
+
+        # Commit the changes to the database
+        self.__conn.commit()
+        # Close communication with the PostgreSQL database
+        self.__cursor.close()
+
+        return True
+
+    def message(self, app=None, message=''):
+        """write message to journal entry"""
+        sql = """INSERT INTO entries(uuid, app, message)
+             VALUES(%s, %s, %s) RETURNING id;"""
+        self.__cursor.execute(sql, (self.__uuid, app, message))
+
+        # get the generated id back
+        id = self.__cursor.fetchone()[0]
+        logging.debug(f'this journal entry has id {id}')
+
+        # commit the changes to the database
+        self.__conn.commit()
+
+        # return UUID back to user
+        return id
+
 
     # ---- internals ----
 
-    def _read_metadata(self):
-        if os.path.exists(f'{self.__journal_dir}/metadata.yaml'):
-            with open(f'{self.__journal_dir}/metadata.yaml') as f:
-                self.__metadata = yaml.safe_load(f.read())
-        else:
-            self.__metadata = {'last_id': 0, 'logs': []}
-        self.__next_id = self.__metadata['last_id'] + 1
+    def _connect_to_db(self):
+        self.__conn = psycopg2.connect(
+                database="journal",
+                        host="127.0.0.1",
+                        user="postgres",
+                        password="postgres",
+                        port="5432")
 
-    def _write_metadata(self):
-        with open(f'{self.__journal_dir}/metadata.yaml', "w") as f:
-            f.write(yaml.dump(self.__metadata, default_flow_style=False))
-    
-    def _write_properties(self, properties):
-        filename = f'{self.__journal_dir}/{self.__next_id}'
-        with open(filename, "w") as f:
-            f.write(yaml.dump(properties, default_flow_style=False))
+        self.__cursor = self.__conn.cursor()
