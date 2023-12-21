@@ -5,7 +5,8 @@ setup(name='veritas',
       packages=['veritas',
                 'veritas.devicemanagement',
                 'veritas.sot',
-                'veritas.tools'
-                'veritas.cmk'
+                'veritas.tools',
+                'veritas.cmk',
+                'veritas.databsehandler'
                 ],
 )
