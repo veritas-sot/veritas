@@ -1,6 +1,6 @@
-import logging
 import os
 import datetime
+import logging
 from pathlib import Path
 from pydriller import Repository as pyRepository
 from git import Repo, GitCommandError
@@ -17,8 +17,9 @@ class Repository:
     def __init__(self, path: str, repo: str):
             self.path = Path(path).expanduser().resolve()
             self._repo_name = repo
+            self._logger = logging.getLogger(__name__)
             # Initialize repository
-            logging.debug(f'opening REPO {path} / {self.path} / ssh {self._ssh_cmd}')
+            self._logger.debug(f'opening REPO {path} / {self.path} / ssh {self._ssh_cmd}')
             self._open_repository()
 
     def __getattr__(self, item):
@@ -177,7 +178,7 @@ class Repository:
 
     def has_changes(self):
         if self._repo.is_dirty(untracked_files=True):
-            logging.debug('Changes detected')
+            self._logger.debug('Changes detected')
             return True
         return False
 
@@ -229,7 +230,7 @@ class Repository:
         if local_path.is_file():
             return local_path.read_text()
         else:
-            logging.error(f'file {local_path} does not exists')
+            self._logger.error(f'file {local_path} does not exists')
             return None
 
     def write(self, filename, content):
@@ -240,7 +241,7 @@ class Repository:
                 filehandler.close()
                 return True
         except Exception as exc:
-            logging.error(f'could not write {local_path}; got exception {exc}')
+            self._logger.error(f'could not write {local_path}; got exception {exc}')
             return False
 
         return False

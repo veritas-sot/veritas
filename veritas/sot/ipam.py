@@ -1,4 +1,3 @@
-import logging
 from pynautobot import api
 from pynautobot.models.dcim import Interfaces
 from pynautobot.models.dcim import Devices
@@ -11,10 +10,9 @@ from ..tools import tools
 class Ipam(object):
 
     def __init__(self, sot):
-        logging.debug(f'initializing IPAM object')
-
         # init variables
         self._sot = sot
+        self._logger = sot.get_logger()
 
         # open connection to nautobot
         self._nautobot = self._sot.open_nautobot()
@@ -25,5 +23,5 @@ class Ipam(object):
         try:
             return self._nautobot.ipam.ip_addresses.create(properties)
         except Exception as exc:
-            logging.error(f'could not add ip address; got exception {exc}')
+            self._logger.error(f'could not add ip address; got exception {exc}')
             return False

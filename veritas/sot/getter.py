@@ -1,4 +1,3 @@
-import logging
 import requests
 import json
 import itertools
@@ -23,10 +22,10 @@ class Getter(object):
 
         # singleton
         if cls._instance is None:
-            logging.debug(f'Creating GETTER object')
             cls._instance = super(Getter, cls).__new__(cls)
             # Put any initialization here
             cls._sot = sot
+            cls._logger = sot.get_logger()
         return cls._instance
 
     def __getattr__(self, item):
@@ -39,7 +38,7 @@ class Getter(object):
         return self
 
     def _get_vlan(self, vid, site):
-        logging.debug(f'getting vlan: {vid} / {site}')
+        self._logger.debug(f'getting vlan: {vid} / {site}')
         self._nautobot = self._sot.open_nautobot()
 
         vlans = self._nautobot.ipam.vlans.filter(vid=vid)
@@ -52,7 +51,7 @@ class Getter(object):
             if site_name == site:
                 return vlan
 
-        logging.debug("no VLAN found")
+        self._logger.debug("no VLAN found")
         return None
 
     # -----===== internal def =====-----
@@ -114,11 +113,11 @@ class Getter(object):
         self._nautobot = self._sot.open_nautobot()
 
         if device_id:
-            logging.debug(f'getting Interface {interface_name} of {device_id}')
+            self._logger.debug(f'getting Interface {interface_name} of {device_id}')
             return self._nautobot.dcim.interfaces.get(device_id=device_id, 
                                                       name=interface_name)
         else:
-            logging.debug(f'getting Interface {interface_name} of {device}')
+            self._logger.debug(f'getting Interface {interface_name} of {device}')
             return self._nautobot.dcim.interfaces.get(device={'name': device}, 
                                                       name=interface_name)
 
@@ -132,10 +131,10 @@ class Getter(object):
         self._nautobot = self._sot.open_nautobot()
 
         if device_id:
-            logging.debug(f'getting ALL Interface of {device_id}')
+            self._logger.debug(f'getting ALL Interface of {device_id}')
             return self._nautobot.dcim.interfaces.filter(device_id=device_id)
         else:
-            logging.debug(f'getting ALL Interface of {device}')
+            self._logger.debug(f'getting ALL Interface of {device}')
             return self._nautobot.dcim.interfaces.filter(device=device)
 
     def use(self, use):
@@ -206,48 +205,48 @@ class Getter(object):
         self._nautobot = self._sot.open_nautobot()
         item = properties.get('item')
         del properties['item']
-        logging.debug(f'getting id of {item}; parameter {properties}')
+        self._logger.debug(f'getting id of {item}; parameter {properties}')
 
         if item == "device":
             hostname = properties.get('name')
             if hostname in self._cache['device']:
-                logging.debug(f'getting id from cache')
+                self._logger.debug(f'getting id from cache')
                 return self._cache['device'][hostname]
             try:
                 device = self._nautobot.dcim.devices.get(**properties)
                 if device:
-                    logging.debug(f'adding {device.id} to cache')
+                    self._logger.debug(f'adding {device.id} to cache')
                     self._cache['device'][hostname] = device.id
                     return device.id
                 else:
-                    logging.error(f'unknown device {hostname}')
+                    self._logger.error(f'unknown device {hostname}')
                     return None
             except Exception as exc:
-                logging.error(f'got exception {exc}')
+                self._logger.error(f'got exception {exc}')
                 return None
         elif item == "site":
             site_name = properties.get('name')
             if site_name in self._cache['site']:
-                logging.debug(f'getting id from cache')
+                self._logger.debug(f'getting id from cache')
                 return self._cache['site'][site_name]
             try:
                 site = self._nautobot.dcim.sites.get(**properties)
                 if site:
-                    logging.debug(f'adding {site.id} to cache')
+                    self._logger.debug(f'adding {site.id} to cache')
                     self._cache['site'][site_name] = site.id
                     return site.id
                 else:
-                    logging.error(f'unknown site {site_name}')
+                    self._logger.error(f'unknown site {site_name}')
                     return None
             except Exception as exc:
-                logging.error(f'got exception {exc}')
+                self._logger.error(f'got exception {exc}')
                 return None
         elif item =="vlan":
             vid = properties.get('vid')
             site_name = properties.get('site')
             id = self._cache['vlan'].get(site_name, {}).get(vid, None)
             if id:
-                logging.debug(f'using cached id')
+                self._logger.debug(f'using cached id')
                 return id
             else:
                 vlan = self._get_vlan(vid, site_name)
@@ -263,19 +262,19 @@ class Getter(object):
             content_types = properties.get('content_types')
             id = self._cache['tag'].get(content_types, {}).get(entity, None)
             if id:
-                logging.debug(f'using cached id')
+                self._logger.debug(f'using cached id')
                 return id
             try:
                 tag = self._nautobot.extras.tags.get(**properties)
                 if tag:
-                    logging.debug(f'adding {content_types} {tag.id} to cache')
+                    self._logger.debug(f'adding {content_types} {tag.id} to cache')
                     self._cache['tag'][content_types] = tag.id
                     return tag.id
                 else:
-                    logging.error(f'unknown tag {entity}')
+                    self._logger.error(f'unknown tag {entity}')
                     return None
             except Exception as exc:
-                logging.error(f'got exception {exc}')
+                self._logger.error(f'got exception {exc}')
                 return None
 
     def changes(self, *unnamed, **named):
@@ -300,7 +299,7 @@ class Getter(object):
         where = properties.get('where') if 'where' in properties else properties.get('parameter')
         mode = properties.get('mode','sql')
 
-        logging.debug(f'query select {select} using {using} where {where} (query)')
+        self._logger.debug(f'query select {select} using {using} where {where} (query)')
         if mode == "sql":
             return self._execute_sql_query(select=select, using=using, where=where)
         else:
@@ -351,12 +350,12 @@ class Getter(object):
             # adjust the type of custom fields
             name = f'${whr}: String'
             if isinstance(where[whr], list) and name in query_final_vars:
-                logging.debug(f'convert {whr} to String')
+                self._logger.debug(f'convert {whr} to String')
                 where[whr] = where[whr][0]
 
         # convert string ["val1","val2",....,"valn"] to list
         for key,val in dict(where).items():
-            # logging.debug(f'key: {key} val: {val} type(val): {type(val)}')
+            # self._logger.debug(f'key: {key} val: {val} type(val): {type(val)}')
             if isinstance(val, str):
                 # convert Boolean to True/False
                 if cf_fields_types and cf_fields_types.get(key.replace('cf_',''),{}).get('type') == 'Boolean (true/false)':
@@ -379,7 +378,7 @@ class Getter(object):
                 # when using custom fields we have to convert the values as well
                 elif cf_fields_types and cf_fields_types.get(key.replace('cf_',''),{}).get('type') == 'Text':
                     if len(val) > 1:
-                        logging.erro(f'parameter {key} does not support [String]')
+                        self._logger.erro(f'parameter {key} does not support [String]')
                     where[key] = val[0]
                 elif cf_fields_types and cf_fields_types.get(key.replace('cf_',''),{}).get('type') == 'Boolean (true/false)':
                     if 'true' in val[0].lower():
@@ -413,11 +412,11 @@ class Getter(object):
         # print('--- variables ---')
         # print(where)
 
-        logging.debug(f'select={select} using={using} where={where} (exc)')
+        self._logger.debug(f'select={select} using={using} where={where} (exc)')
         response = self._nautobot.graphql.query(query=query, variables=where).json
-        # logging.debug(response)
+        # self._logger.debug(response)
         if 'errors' in response:
-            logging.error(f'got error: {response.get("errors")}')
+            self._logger.error(f'got error: {response.get("errors")}')
             response = {}
         if 'nb.ipaddresses' in using:
             data = dict(response)['data']['ip_addresses']
@@ -493,9 +492,9 @@ class Getter(object):
         # print(variables)
 
         response = self._nautobot.graphql.query(query=query, variables=variables).json
-        # logging.debug(response)
+        # self._logger.debug(response)
         if 'errors' in response:
-            logging.error(f'got error: {response.get("errors")}')
+            self._logger.error(f'got error: {response.get("errors")}')
             response = {}
         if 'nb.ipaddresses' in using:
             data = dict(response)['data']['ip_addresses']

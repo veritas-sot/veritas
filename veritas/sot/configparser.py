@@ -1,4 +1,3 @@
-import logging
 import os
 import json
 import yaml
@@ -10,9 +9,10 @@ from ttp import ttp
 class Configparser(object):
 
     def __init__(self, sot, *unnamed, **named):
-        logging.debug(f'Creating CONFIGPARSER object')
+        self._logger.debug(f'Creating CONFIGPARSER object')
         properties = tools.convert_arguments_to_properties(unnamed, named)
         self._sot = sot
+        self._logger = sot.get_logger()
         self._device_config = properties.get('config', None)
         self._output_format = properties.get('output_format', 'json')
         self._empty_config = properties.get('empty_config', False)
@@ -46,17 +46,17 @@ class Configparser(object):
             platform = properties.get('platform','ios')
             # use default template that is configured in config
             filename = self._my_config.get('templates',{}).get(platform, None)
-            logging.debug(f'using ttp template {filename}')
+            self._logger.debug(f'using ttp template {filename}')
         else:
             filename = self._template_filename
         if filename is None:
-            logging.error(f'please configure correct template filename for {platform}')
+            self._logger.error(f'please configure correct template filename for {platform}')
             return None
         try:
              with open("%s/%s" % (basedir, filename)) as f:
                 ttp_template = f.read()
         except:
-            logging.error(f'could not read template')
+            self._logger.error(f'could not read template')
             return None
         
         return ttp_template
@@ -84,9 +84,9 @@ class Configparser(object):
             return True
         except Exception as exc:
             if self._empty_config:
-                logging.debug(f'this is an empty config; return True')
+                self._logger.debug(f'this is an empty config; return True')
                 return True
-            logging.error(f'could not parse config {exc}')
+            self._logger.error(f'could not parse config {exc}')
             return None
 
     def get(self, *unnamed, **named):
@@ -109,7 +109,7 @@ class Configparser(object):
         ip = address.split('/')[0]
         for name, properties in interfaces.items():
             if ip == properties.get('ip'):
-                logging.debug(f'found IP {ip} on {name}')
+                self._logger.debug(f'found IP {ip} on {name}')
                 return name
         return None
     
@@ -199,7 +199,7 @@ class Configparser(object):
         if '__' in key:
             lookup = key.split('__')[1]
 
-        logging.debug(f'cmd: "{cmd}" lookup: "{lookup}" value: "{value}" lines: {len(global_config)}')
+        self._logger.debug(f'cmd: "{cmd}" lookup: "{lookup}" value: "{value}" lines: {len(global_config)}')
 
         for line in global_config:
             if properties.get('ignore_leading_spaces'):
@@ -208,7 +208,7 @@ class Configparser(object):
                 src = line
 
             if self._find_in_line(cmd, lookup, value, src):
-                logging.debug(f'found pattern in global config')
+                self._logger.debug(f'found pattern in global config')
                 return True
         
         return False
@@ -234,7 +234,7 @@ class Configparser(object):
         if '__' in key:
             lookup = key.split('__')[1]
 
-        logging.debug(f'cmd: "{cmd}" lookup: "{lookup}" value: "{value}" lines: {len(interface_config)}')
+        self._logger.debug(f'cmd: "{cmd}" lookup: "{lookup}" value: "{value}" lines: {len(interface_config)}')
 
         for line in interface_config:
             if ignore_leading_spaces:
@@ -248,7 +248,7 @@ class Configparser(object):
             if self._find_in_line(cmd, lookup, value, src):
                 matched_on.append(interface)
 
-        logging.debug(f'matched_on={matched_on}')
+        self._logger.debug(f'matched_on={matched_on}')
         return matched_on
 
 # internals
@@ -272,7 +272,7 @@ class Configparser(object):
         nire - negated case-insensitive regular expression match
         """
 
-        # logging.debug(f'key: {key} lookup: {lookup} value: {value} line: {line}')
+        # self._logger.debug(f'key: {key} lookup: {lookup} value: {value} line: {line}')
         if key == 'match':
             if lookup == "ie":
                 # case-insensitive exact match

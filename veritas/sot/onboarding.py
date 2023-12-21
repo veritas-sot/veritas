@@ -1,4 +1,3 @@
-import logging
 import json
 import re
 import sys
@@ -41,7 +40,7 @@ class Onboarding:
     """
 
     def __init__(self, sot):
-        logging.debug(f'initializing ONBOARDING object')
+        self._logger.debug(f'initializing ONBOARDING object')
 
         self._sot = sot
         self._make_interface_primary = False
@@ -55,6 +54,7 @@ class Onboarding:
         self._use_device_if_already_exists = True
         self._use_interface_if_already_exists = True
         self._use_ip_if_already_exists = True
+        self._logger = sot.get_logger()
 
         # open connection to nautobot
         self._nautobot = self._sot.open_nautobot()
@@ -63,7 +63,7 @@ class Onboarding:
 
     def interfaces(self, *unnamed, **named):
         """add interface to nautobot"""
-        logging.debug(f'adding interface to list of interfaces')
+        self._logger.debug(f'adding interface to list of interfaces')
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         # empty list!!!
         self._interfaces = []
@@ -76,7 +76,7 @@ class Onboarding:
 
     def vlans(self, *unnamed, **named):
         """add vlans to nautobot"""
-        logging.debug(f'adding vlan to list of VLANS')
+        self._logger.debug(f'adding vlan to list of VLANS')
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         # empty list!!!
         self._vlans = []
@@ -89,43 +89,43 @@ class Onboarding:
 
     def primary_interface(self, primary_interface):
         """set primary interface"""
-        logging.debug(f'setting primary interface to {primary_interface}')
+        self._logger.debug(f'setting primary interface to {primary_interface}')
         self._primary_interface = primary_interface
         return self
 
     def use_device_if_exists(self, use_device):
         """use device if device already exists in nautobot"""
-        logging.debug(f'setting _use_device_if_already_exists to {use_device}')
+        self._logger.debug(f'setting _use_device_if_already_exists to {use_device}')
         self._use_device_if_already_exists = use_device
         return self
 
     def use_interface_if_exists(self, use_interface):
         """use interface if interface already exists in nautobot"""
-        logging.debug(f'setting _use_interface_if_already_exists to {use_interface}')
+        self._logger.debug(f'setting _use_interface_if_already_exists to {use_interface}')
         self._use_interface_if_already_exists = use_interface
         return self
 
     def use_ip_if_exists(self, use_ip):
         """use IP if IP already exists in nautobot"""
-        logging.debug(f'setting _use_ip_if_already_exists to {use_ip}')
+        self._logger.debug(f'setting _use_ip_if_already_exists to {use_ip}')
         self._use_ip_if_already_exists = use_ip
         return self
 
     def add_prefix(self, add_prefix):
         """set add_prefix"""
-        logging.debug(f'setting _add_prefix to {add_prefix}')
+        self._logger.debug(f'setting _add_prefix to {add_prefix}')
         self._add_prefix = add_prefix
         return self
 
     def assign_ip(self, assign_ip):
         """set assign_ip"""
-        logging.debug(f'setting _assign_ip to {assign_ip}')
+        self._logger.debug(f'setting _assign_ip to {assign_ip}')
         self._assign_ip = assign_ip
         return self
 
     def bulk(self, bulk):
         """set bulk"""
-        logging.debug(f'setting _bulk to {bulk}')
+        self._logger.debug(f'setting _bulk to {bulk}')
         self._bulk = bulk
         return self
 
@@ -134,7 +134,7 @@ class Onboarding:
     def add_device(self, *unnamed, **named):
         """add device to nautobot"""
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        logging.debug(f'properties: {properties}')
+        self._logger.debug(f'properties: {properties}')
 
         # add device to nautobot
         device = self._add_device_to_nautobot(properties)
@@ -159,7 +159,7 @@ class Onboarding:
         # get device object and interface properties
         device = properties.get('device')
         interfaces = properties.get('interfaces')
-        logging.debug(f'adding interfaces to {device}')
+        self._logger.debug(f'adding interfaces to {device}')
 
         # now add the virtual and physical interfaces
         virtual_interfaces = []
@@ -169,7 +169,7 @@ class Onboarding:
                 virtual_interfaces.append(interface)
             else:
                 physical_interfaces.append(interface)
-        logging.debug(f'summary: adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
+        self._logger.debug(f'summary: adding {len(virtual_interfaces)} virtual and {len(physical_interfaces)} physical interfaces')
 
         if device and len(interfaces) > 0:
             # add interfces to nautobot
@@ -180,7 +180,7 @@ class Onboarding:
                 ip_addresses = interface.get('ip_addresses',[])
                 # an interface can have more than one IP, so it is a list of IPs!!!
                 if len(ip_addresses) > 0:
-                    logging.debug(f'found {len(ip_addresses)} IP(s) on device {device}/{interface.get("name")}')
+                    self._logger.debug(f'found {len(ip_addresses)} IP(s) on device {device}/{interface.get("name")}')
                     if self._add_prefix:
                         prefix = self._add_prefix_to_nautobot(ip_addresses)
 
@@ -194,9 +194,9 @@ class Onboarding:
                             if self._assign_ip:
                                 if nb_interface:
                                     assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
-                                    logging.debug(f'assigned IPv4 {ip_address} on device {device} / nb_interface')
+                                    self._logger.debug(f'assigned IPv4 {ip_address} on device {device} / nb_interface')
                                 else:
-                                    logging.error(f'could not get interface {device.name}/{interface.get("name")}')
+                                    self._logger.error(f'could not get interface {device.name}/{interface.get("name")}')
 
         # what value should we return?
         return v_response and p_response and prefix and assign
@@ -208,10 +208,10 @@ class Onboarding:
         # get device object and interface properties
         device = properties.get('device')
         interfaces = properties.get('interfaces')
-        logging.debug(f'updating interfaces of {device}')
+        self._logger.debug(f'updating interfaces of {device}')
 
         if not device or len(interfaces) == 0:
-            logging.debug(f'either no device found or len(interfaces) == 0')
+            self._logger.debug(f'either no device found or len(interfaces) == 0')
             return False
 
         for interface in interfaces:
@@ -227,7 +227,7 @@ class Onboarding:
             # an interface can have more than one IP, so it is a list of IPs!!!
             # we are now (re)adding all assigments
             if len(ip_addresses) > 0:
-                logging.debug(f'found {len(ip_addresses)} IP(s) on device {device}/{interface.get("name")}')
+                self._logger.debug(f'found {len(ip_addresses)} IP(s) on device {device}/{interface.get("name")}')
                 if self._add_prefix:
                     prefix = self._add_prefix_to_nautobot(ip_addresses)
                 
@@ -237,9 +237,9 @@ class Onboarding:
                         if self._assign_ip:
                             if nb_interface:
                                 assign = self._assign_ipaddress_to_interface(device, nb_interface, ip_address)
-                                logging.debug(f'assigned IPv4 {ip_address.display} on device {device} / nb_interface')
+                                self._logger.debug(f'assigned IPv4 {ip_address.display} on device {device} / nb_interface')
                             else:
-                                logging.error(f'could not get interface {device.name}/{interface.get("name")}')
+                                self._logger.error(f'could not get interface {device.name}/{interface.get("name")}')
         return True
 
     def set_primary_address(self, address, device):
@@ -250,14 +250,14 @@ class Onboarding:
         else:
             ip_address = address
         if not isinstance(ip_address, IpAddresses):
-            logging.error(f'no valid ip address found')
+            self._logger.error(f'no valid ip address found')
             return False
         
         try:
             return device.update({'primary_ip4': ip_address.id})
         except Exception as exc:
             if 'is not assigned to this device' in str(exc):
-                logging.error(f'the address {ip_address.display} is not assigned to {device.name}')
+                self._logger.error(f'the address {ip_address.display} is not assigned to {device.name}')
                 return False
 
     # ---------- internal methods ----------
@@ -267,23 +267,23 @@ class Onboarding:
         
         try:
             device_name = device_properties.get('name')
-            logging.info(f'adding device {device_name} to SOT')
+            self._logger.info(f'adding device {device_name} to SOT')
             device = self._nautobot.dcim.devices.create(device_properties)
             if device is None:
-                logging.error(f'could not add device {device_name} to SOT')
+                self._logger.error(f'could not add device {device_name} to SOT')
                 return None
             return device
         except Exception as exc:
             if 'A device with this name already exists' in str(exc):
-                logging.debug(f'a device with this name already exists')
+                self._logger.debug(f'a device with this name already exists')
                 if self._use_device_if_already_exists:
                     return self._nautobot.dcim.devices.get(name=device_name)
             else:
-                logging.error(exc)
+                self._logger.error(exc)
         return None 
 
     def _add_vlans_to_nautobot(self):
-        logging.debug(f'adding VLANs to nautobot')
+        self._logger.debug(f'adding VLANs to nautobot')
         # check if vlan exists
         new_vlans = []
         for vlan in self._vlans:
@@ -291,18 +291,18 @@ class Onboarding:
             location = vlan.get('location')
             uuid = self._sot.get.id(item='vlan', vid=vid, location=location)
             if uuid:
-                logging.debug(f'vlan vid={vid} location={location} found in nautobot')
+                self._logger.debug(f'vlan vid={vid} location={location} found in nautobot')
             else:
                 new_vlans.append(vlan)
         try:
             return self._nautobot.ipam.vlans.create(new_vlans)
         except Exception as exc:
-            logging.error(exc)
+            self._logger.error(exc)
         return False
 
     def _add_interfaces_to_nautobot(self, device, interfaces):
         """add interfaces to nautobot"""
-        logging.debug(f'now adding {len(interfaces)} interfaces to device {device}')
+        self._logger.debug(f'now adding {len(interfaces)} interfaces to device {device}')
         for interface in interfaces:
             if not 'device' in interface:
                 interface['device'] = {'id': device.id}
@@ -313,9 +313,9 @@ class Onboarding:
                 return self._nautobot.dcim.interfaces.create(interfaces)
             except Exception as exc:
                 if 'The fields device, name must make a unique set' in str(exc):
-                    logging.error(f'one or more interfaces were already in nautobot')
+                    self._logger.error(f'one or more interfaces were already in nautobot')
                 else:
-                    logging.error(f'got exception: {exc}')
+                    self._logger.error(f'got exception: {exc}')
                 return False
         else:
             for interface in interfaces:
@@ -325,7 +325,7 @@ class Onboarding:
                     success = success and self._nautobot.dcim.interfaces.create(interface)
                 except Exception as exc:
                     if 'The fields device, name must make a unique set' in str(exc):
-                        logging.error(f'this interfaces is already in nautobot')
+                        self._logger.error(f'this interfaces is already in nautobot')
                     success = False
             return success
 
@@ -345,23 +345,23 @@ class Onboarding:
             try:
                 added_prefixe.append(self._nautobot.ipam.prefixes.create(properties))
             except Exception as exc:
-                logging.error(f'could not add prefix to nautobot; got {exc}')
+                self._logger.error(f'could not add prefix to nautobot; got {exc}')
 
         return added_prefixe            
 
         # do we still need this code?
         # if not '/' in ipv4:
-        #     logging.error(f'cannot add prefix to nautobot; no mask found in primary_ipv4')
+        #     self._logger.error(f'cannot add prefix to nautobot; no mask found in primary_ipv4')
         # ip = IPNetwork(ipv4)
 
-        # logging.debug(f'network={ip.network} prefixlen={ip.prefixlen}')
+        # self._logger.debug(f'network={ip.network} prefixlen={ip.prefixlen}')
         # properties = {'prefix': f'{ip.network}/{ip.prefixlen}',
         #               'status': {'name': 'Active'}}
 
         # try:
         #     return self._nautobot.ipam.prefixes.create(properties)
         # except Exception as exc:
-        #     logging.error(exc)
+        #     self._logger.error(exc)
         # return False
 
     def _add_ipaddress_to_nautbot(self, device, addresses):
@@ -384,45 +384,45 @@ class Onboarding:
                 properties.update({'tags': address['tags']})
             try:
                 added_addresses.append(self._nautobot.ipam.ip_addresses.create(properties))
-                logging.debug(f'added IP {ip_address} to nautobot')
+                self._logger.debug(f'added IP {ip_address} to nautobot')
             except Exception as exc:
                 if 'duplicate key value violates unique constraint' in str(exc):
-                    logging.debug(f'IP {ip_address} address already exists')
+                    self._logger.debug(f'IP {ip_address} address already exists')
                     if self._use_ip_if_already_exists:
                         added_addresses.append(self._nautobot.ipam.ip_addresses.get(
                                 address=ip_address, namespace=namespace))
                 else:
-                    logging.error(exc)
+                    self._logger.error(exc)
         return added_addresses 
 
     def _assign_ipaddress_to_interface(self, device, interface, ip_address):
         """assign IPv4 address to interface of device and set primary IPv4"""
-        logging.debug(f'assigning IP {ip_address} to {device}/{interface.display}')
+        self._logger.debug(f'assigning IP {ip_address} to {device}/{interface.display}')
         try:
             properties = {'interface': interface.id,
                           'ip_address': ip_address.id} 
             assigned = self._nautobot.ipam.ip_address_to_interface.create(properties)
         except Exception as exc:
             if 'The fields interface, ip_address must make a unique set.' in str(exc):
-                logging.debug(f'this IP address is already assigned')
+                self._logger.debug(f'this IP address is already assigned')
                 assigned = True
             else:
                 assigned = False
-                logging.error(exc)
+                self._logger.error(exc)
         
         if assigned and str(interface.display).lower() == self._primary_interface.lower():
-            logging.debug(f'found primary IP; update device and set primary IPv4')
+            self._logger.debug(f'found primary IP; update device and set primary IPv4')
             try:
                 update = device.update({'primary_ip4': ip_address.id})
             except Exception as exc:
-                logging.error(f'could not set primary IPv4 on {device}')
+                self._logger.error(f'could not set primary IPv4 on {device}')
 
         return assigned
 
     def _remove_all_assignments(self, device, interface):
         """remove all assignments of any IP"""
 
-        logging.debug(f'removing ALL assigments on {device.display}/{interface.display}')
+        self._logger.debug(f'removing ALL assigments on {device.display}/{interface.display}')
         ip_addresses = self._nautobot.ipam.ip_addresses.filter(device_id=[device.id], interfaces=interface.display)
         for ip in ip_addresses:
             id_list = self._nautobot.ipam.ip_address_to_interface.filter(
@@ -433,6 +433,6 @@ class Onboarding:
                 try:
                     assignment.delete()
                 except Exception as exc:
-                    logging.error(exc)
+                    self._logger.error(exc)
                     response = False
         return response

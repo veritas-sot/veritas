@@ -1,4 +1,3 @@
-import logging
 from pynautobot import api
 from ..tools import tools
 
@@ -8,6 +7,7 @@ class Updater(object):
     def __new__(cls, sot):
         cls._instance = None
         cls._sot = sot
+        cls._logger = sot.get_logger()
         cls._nautobot = cls._sot.open_nautobot()
         cls._endpoints = {'sites': cls._nautobot.dcim.sites,
                           'manufacturers': cls._nautobot.dcim.manufacturers,
@@ -29,7 +29,6 @@ class Updater(object):
                 
         # singleton
         if cls._instance is None:
-            logging.debug(f'Creating UPDATER object')
             cls._instance = super(Updater, cls).__new__(cls)
         return cls._instance
 
@@ -43,21 +42,21 @@ class Updater(object):
         try:
             entity = func.get(**getter)
             if entity is None:
-                logging.debug(f'entity not found in sot')
+                self._logger.debug(f'entity not found in sot')
                 return None
         except Exception as exc:
-            logging.error(f'could not get entity; got exception {exc}')
+            self._logger.error(f'could not get entity; got exception {exc}')
             return None
 
         try:
             success = entity.update(properties)
             if success:
-                logging.debug("entity updated in sot")
+                self._logger.debug("entity updated in sot")
             else:
-                logging.debug("entity not updated in sot")
+                self._logger.debug("entity not updated in sot")
             return entity
         except Exception as exc:
-            logging.error("entity not updated in sot; got exception %s" % exc)
+            self._logger.error("entity not updated in sot; got exception %s" % exc)
             return None
 
         return entity
@@ -68,7 +67,7 @@ class Updater(object):
         values = properties.get('values')
         getter = properties.get('getter')
         if endpoint_name is None or values is None or getter is None:
-            logging.error('endpoint, getter, and values must be set')
+            self._logger.error('endpoint, getter, and values must be set')
             return None
         endpoint = self._endpoints.get(endpoint_name)
         return self.update_entity(endpoint, values, getter)

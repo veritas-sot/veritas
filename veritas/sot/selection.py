@@ -1,4 +1,3 @@
-import logging
 import json
 import sys
 from anytree import AnyNode,RenderTree, PreOrderIter, PostOrderIter, search
@@ -29,6 +28,7 @@ class Selection(object):
 
     def __init__(self, sot, *values):
         self._sot = sot
+        self._logger = sot.get_logger()
         self._using = set()
 
         self._normalize = False
@@ -94,13 +94,13 @@ class Selection(object):
         return self
 
     def mode(self, mode):
-        logging.debug('setting mode to {mode}')
+        self._logger.debug('setting mode to {mode}')
         self._mode = mode
         return self
 
     def where(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        logging.debug(f'query: values {self._select} using: {self._using} where {properties} mode: {self._mode}')
+        self._logger.debug(f'query: values {self._select} using: {self._using} where {properties} mode: {self._mode}')
 
         # is it a join operation
         if self._join:
@@ -141,9 +141,9 @@ class Selection(object):
                 if w.startswith(self._right_identifier):
                     where_right.append(w.replace(f'{self._right_identifier}.','',1))
 
-            logging.debug(f'join detected; left: {self._left_table}/{self._left_identifier}' \
+            self._logger.debug(f'join detected; left: {self._left_table}/{self._left_identifier}' \
                 f' right: {self._right_table}/{self._right_identifier} using: {self._using}')
-            logging.debug(f'left_select: {left_select} left_where: {where_left}' \
+            self._logger.debug(f'left_select: {left_select} left_where: {where_left}' \
                 f' right_select: {right_select} right_where: {where_right}')
 
             left_result = self._parse_query(where_left, list(left_select), self._left_table)
@@ -163,7 +163,7 @@ class Selection(object):
     # SQL mode below
 
     def _parse_sql_query(self, expression, select, using):
-        logging.debug(f'expression {expression} ({len(expression)})')
+        self._logger.debug(f'expression {expression} ({len(expression)})')
         # lets check if we have a logical operation
         found_logical_expression = False
         try:
@@ -171,10 +171,10 @@ class Selection(object):
                 res = boolean_parser(expression)
                 lop = res.logicop
                 # yes we have one ... parse it
-                logging.debug(f'logical expression found {expression}')
+                self._logger.debug(f'logical expression found {expression}')
                 found_logical_expression = True
         except:
-            logging.debug(f'no logical operation found ... simple call {expression}')
+            self._logger.debug(f'no logical operation found ... simple call {expression}')
 
         if found_logical_expression:
             self._node_id = 0
@@ -253,7 +253,7 @@ class Selection(object):
         operator = expression.get('operator')
         value = expression.get('value')
         
-        logging.debug(f'field: {field} operator: {operator} value: {value}')
+        self._logger.debug(f'field: {field} operator: {operator} value: {value}')
         if operator == '!=':
             return {f'{field}__ne': [value]}
         else:
@@ -269,10 +269,10 @@ class Selection(object):
         self._refresh_cf_types()
 
         run = 1
-        logging.debug(f'condense run {run}')
+        self._logger.debug(f'condense run {run}')
         while self._condense_single_run(root):
             run += 1
-            logging.debug(f'condense run {run}')
+            self._logger.debug(f'condense run {run}')
 
     def _refresh_cf_types(self):
         nb = self._sot.open_nautobot()
@@ -286,7 +286,7 @@ class Selection(object):
         for node in nodes:
             if node.operator == 'or':
                 if all(c.is_leaf for c in node.children):
-                    logging.debug(f'id: {node.id} operator "or" and all childrens are leafs')
+                    self._logger.debug(f'id: {node.id} operator "or" and all childrens are leafs')
                     merged = {}
                     cf_type_supported = True
                     for c in node.children:
@@ -299,14 +299,14 @@ class Selection(object):
                         if c.values:
                              merged = self._merge_dicts(merged, c.values)
                     if len(merged) == 1 and cf_type_supported:
-                        logging.debug(f'leafs can be merged to {merged}')
+                        self._logger.debug(f'leafs can be merged to {merged}')
                         f = list(merged.keys())
                         node.values = self._merge_dicts(node.values, merged) if node.values else merged
                         node.children = []
                         something_condensed = True
             elif node.operator == 'and':
                 if all(c.is_leaf for c in node.children):
-                    logging.debug(f'id: {node.id} operator "and" and all childrens are leafs')
+                    self._logger.debug(f'id: {node.id} operator "and" and all childrens are leafs')
                     merged = {}
                     for c in node.children:
                         merged = self._merge_dicts(merged, c.values) if c.values else merged
@@ -329,7 +329,7 @@ class Selection(object):
             select += ['id']
         # walk through tree; childrens first than the other nodes
         for node in PostOrderIter(logical_tree):
-            logging.debug(f'id: {node.id} operator: {node.operator} leaf: {node.is_leaf}')
+            self._logger.debug(f'id: {node.id} operator: {node.operator} leaf: {node.is_leaf}')
             if node.is_leaf:
                 node.response = self._sot.get.query(select=select,
                                                     using=using,
@@ -355,7 +355,7 @@ class Selection(object):
             return all_items[0]
         
         result = []
-        logging.debug(f'merging {len(all_items)} lists to one')
+        self._logger.debug(f'merging {len(all_items)} lists to one')
         # 2. we have multiple lists
         # get first list and check which item is in this list and all other lists
         anchor = all_items[0]
@@ -384,10 +384,10 @@ class Selection(object):
                 id = l.get('id',-1)
                 # check if id is in result
                 if not any(d['id'] == id for d in result):
-                    logging.debug(f'add {id} to result')
+                    self._logger.debug(f'add {id} to result')
                     result.append(l)
                 else:
-                    logging.debug(f'{id} is duplicate')
+                    self._logger.debug(f'{id} is duplicate')
         
         return result
 
@@ -396,7 +396,7 @@ class Selection(object):
         join_on_list = self._on.replace(' ','').split('=')
         left_id = join_on_list[0].replace(f'{self._left_identifier}.','',1)
         right_id = join_on_list[1].replace(f'{self._right_identifier}.','',1)
-        logging.debug(f'join tables on left: {left_id} right: {right_id}')
+        self._logger.debug(f'join tables on left: {left_id} right: {right_id}')
 
         # print(json.dumps(left, indent=4))
         # print()

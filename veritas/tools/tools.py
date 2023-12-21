@@ -1,10 +1,14 @@
-from openpyxl import load_workbook
 import logging
+import colorlog
 import yaml
 import os
 import getpass
 import pytricia
 import hashlib
+import queue
+from logging.handlers import SysLogHandler, QueueHandler, QueueListener
+from veritas.databasehandler import databasehandler
+from openpyxl import load_workbook
 
 
 def get_value_from_dict(dictionary, keys):
@@ -24,6 +28,91 @@ def get_value_from_dict(dictionary, keys):
             return nested_dict
 
     return nested_dict
+
+def get_logger(*unnamed, **named):
+    """set logging"""
+    properties = convert_arguments_to_properties(unnamed, named)
+    
+    logname = properties.get('logger', 'veritas')
+    configfile = properties.get('configfile')
+    loglevel = properties.get('loglevel', logging.INFO)
+    format = properties.get('format', '%(levelname)s - %(message)s')
+    use_color = properties.get('color', False)
+    log_colors = properties.get('log_colors', {
+                'DEBUG':    'white',
+                'INFO':     'green',
+                'WARNING':  'yellow',
+                'ERROR':    'red',
+                'CRITICAL': 'red,bg_white',
+            })
+    secondary_log_colors = properties.get('secondary_log_colors', {})
+    address = properties.get('address','/dev/log')
+    filename = properties.get('filename','veritas.log')
+    disable_existing_loggers = properties.get('disable_existing_loggers', True)
+
+    if configfile and not use_color:
+        logging.config.fileConfig(configfile,
+                                  disable_existing_loggers=disable_existing_loggers)
+        return logging.getLogger('veritas')
+
+    logger = colorlog.getLogger(logname) if use_color else logging.getLogger(logname)
+    logger.setLevel(loglevel)
+
+    if "syslog" == properties.get('handler'):
+        handler = SysLogHandler(
+            facility=SysLogHandler.LOG_DAEMON,
+            address=address
+        )
+    elif "file" == properties.get('handler'):
+        handler = logging.FileHandler(filename)
+    elif "null" == properties.get('handler'):
+        handler = logging.NullHandler()
+    else:
+        if use_color:
+            handler = colorlog.StreamHandler()
+        else:
+            handler = logging.StreamHandler()
+    
+    if use_color:
+        formatter = colorlog.ColoredFormatter(
+            format,
+            datefmt="%Y-%m-%d %H:%M:%S",
+            reset=True,
+            log_colors=log_colors,
+            secondary_log_colors=secondary_log_colors,
+            style='%'
+        )
+    else:
+        formatter = logging.Formatter(
+            fmt=format,
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+
+    logger.addHandler(handler)
+    handler.setFormatter(formatter)
+    return logger
+
+def add_queue_listener(logger, db, format='%(levelname)s - %(message)s'):
+    """add queue listener to logging"""
+    log_queue = queue.Queue(-1)
+    queue_handler = QueueHandler(log_queue)
+    logger.addHandler(queue_handler)
+    db_handler = databasehandler.DatabaseHandler(
+        database=db['database'],
+        host=db['host'],
+        user=db['user'],
+        password=db['password'],
+        port=db.get('port, 5432')
+    )
+
+    formatter = logging.Formatter(
+            fmt=format,
+            datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    db_handler.setFormatter(formatter)
+
+    listener = QueueListener(log_queue, db_handler)
+    return listener    
 
 def get_loglevel(level):
     if level == 'debug':
@@ -46,7 +135,7 @@ def set_loglevel(args, config):
     logging.basicConfig(level=loglevel, format=log_format)
 
 def convert_arguments_to_properties(*unnamed, **named):
-    """ converts unnamed (dict) and named arguments to a single property dict """
+    """ convert unnamed (dict) and named arguments to a single property dict """
     properties = {}
     if len(unnamed) > 0:
         for param in unnamed:
