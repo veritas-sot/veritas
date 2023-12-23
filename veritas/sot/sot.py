@@ -1,10 +1,10 @@
 import importlib.machinery
-import logging
 import os
 import json
 import yaml
 from dotenv import load_dotenv, dotenv_values
 from pynautobot import api
+from loguru import logger
 from . import ipam
 from . import getter
 from . import selection
@@ -38,10 +38,8 @@ class Sot:
         self.__job = None
         self._sot_config = {}
 
-        self._logger = properties.get('logger', logging.getLogger(__name__))
-
         filename = properties['sot_config'] if 'sot_config' in properties else self.DEFAULT_CONFIGFILE
-        self._logger.debug("reading SOT config %s/%s" % (self.BASEDIR, filename))
+        logger.debug("reading SOT config %s/%s" % (self.BASEDIR, filename))
         with open(f'{self.BASEDIR}/{filename}') as f:
             self._sot_config = yaml.safe_load(f.read())
 
@@ -103,9 +101,6 @@ class Sot:
     def get_config(self):
         return self._sot_config
 
-    def get_logger(self):
-        return self._logger
-
     def select(self, *unnamed, **named):
         return selection.Selection(self, *unnamed, **named)
 
@@ -127,7 +122,7 @@ class Sot:
         if self._nautobot is None:
             api_version = self._sot_config.get('version','2.0')
             ssl_verify = self._sot_config['ssl_verify']
-            self._logger.debug(f'nautobot api object created version={api_version} ssl_verify={ssl_verify}')
+            logger.debug(f'nautobot api object created version={api_version} ssl_verify={ssl_verify}')
             self._nautobot = api(self._sot_config['nautobot_url'], 
                                  token=self._sot_config['nautobot_token'], 
                                  api_version=api_version)

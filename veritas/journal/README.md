@@ -33,16 +33,20 @@ CREATE TABLE IF NOT EXISTS public.entries
 
 CREATE TABLE IF NOT EXISTS public.log
 (
-    id integer NOT NULL DEFAULT nextval('log_id_seq'::regclass),
+    id serial NOT NULL,
+    uuid uuid NOT NULL DEFAULT gen_random_uuid(),
+    app character varying(10) COLLATE pg_catalog."default",
     date timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    name character varying(1024) COLLATE pg_catalog."default",
     levelno integer,
     levelname character varying(10) COLLATE pg_catalog."default",
+    function character varying(1024) COLLATE pg_catalog."default",
     module character varying(100) COLLATE pg_catalog."default",
     processname character varying(100) COLLATE pg_catalog."default",
-    func character varying(100) COLLATE pg_catalog."default",
+    threadname character varying(100) COLLATE pg_catalog."default",
     lineno integer,
     message character varying(1024) COLLATE pg_catalog."default",
+    filename character varying(1024) COLLATE pg_catalog."default",
     pathname character varying(1024) COLLATE pg_catalog."default",
+    exception character varying(1024) COLLATE pg_catalog."default",
     CONSTRAINT log_pkey PRIMARY KEY (id)
 )

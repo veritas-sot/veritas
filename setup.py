@@ -7,6 +7,7 @@ setup(name='veritas',
                 'veritas.sot',
                 'veritas.tools',
                 'veritas.cmk',
-                'veritas.databsehandler'
+                'veritas.databsehandler',
+                'veritas.messagebus'
                 ],
 )

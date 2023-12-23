@@ -3,6 +3,7 @@ import yaml
 import json
 import sys
 import textfsm
+from loguru import logger
 from veritas.sot import sot as sot
 from veritas.inventory import veritasInventory
 from veritas.tools import tools
@@ -26,7 +27,6 @@ class Job(object):
         InventoryPluginRegister.register("veritas-inventory", veritasInventory.VeritasInventory)
 
         self._sot = sot
-        self._logger = sot.get_logger()
         self._nornir = None
         self._nautobot = None
         self.__on = None
@@ -74,7 +74,7 @@ class Job(object):
         self.__port = properties.get('port', self.__port)
         self.__cfg_plain_text = properties.get('plaintext', True)
         self.__user_primary = properties.get('use_primary', self.__user_primary)
-        self.__self._logger = properties.get('self._logger', self.__self._logger)
+        self.__logger = properties.get('logger', self.__logger)
         return self
 
     def add_data(self, *unnamed, **named):
@@ -100,7 +100,7 @@ class Job(object):
         destination = properties.get('destination')
         count = properties.get('count',3)
 
-        self._logger.info(f'ping {destination} {count}')
+        logger.info(f'ping {destination} {count}')
         self._init_nornir()
         result = self._nornir.run(name="ping", 
                                   task=napalm_ping, 
@@ -113,7 +113,7 @@ class Job(object):
         # get properties
         properties = tools.convert_arguments_to_properties(unnamed, named)
         config = properties if len(properties) > 0 else "running"
-        self._logger.debug(f'getting {config} config')
+        logger.debug(f'getting {config} config')
 
         # init nornir
         self._init_nornir()
@@ -124,7 +124,7 @@ class Job(object):
 
     def send_configs(self, commands):
 
-        self._logger.debug(f'send config {commands}')
+        logger.debug(f'send config {commands}')
         self._init_nornir()
         result = self._nornir.run(
             name="send_configs", task=send_configs, configs=commands
@@ -133,7 +133,7 @@ class Job(object):
 
     def send_command(self, command):
 
-        self._logger.debug(f'send command {command}')
+        logger.debug(f'send command {command}')
         self._init_nornir()
         result = self._nornir.run(
             name=command, task=send_command, command=command
@@ -142,7 +142,7 @@ class Job(object):
 
     def send_commands(self, commands):
 
-        self._logger.debug(f'send commands {commands}')
+        logger.debug(f'send commands {commands}')
         self._init_nornir()
         result = self._nornir.run(
             name="Send commands", task=send_commands, commands=commands
@@ -160,7 +160,7 @@ class Job(object):
         _data = properties.get('data', self.__data)
         _host_groups = properties.get('data', self.__host_groups)
         _groups = properties.get('groups', self.__groups)
-        _self._logger = properties.get('self._logger', self.__self._logger)
+        _logger = properties.get('logger', self.__logger)
         _worker = properties.get('num_workers', 100)
 
         self._nornir = InitNornir(
@@ -193,14 +193,14 @@ class Job(object):
 
     def _getter(self, getter):
 
-        self._logger.info(f'getter {getter}')
+        logger.info(f'getter {getter}')
         self._init_nornir()
         result = self._nornir.run(name=getter, task=napalm_get, getters=getter)
         return self._return(result)
 
     def _direct(self, service):
 
-        self._logger.info(f'is alive')
+        logger.info(f'is alive')
         self._init_nornir()
         if 'is_alive' == service:
             task = self._is_alive
@@ -246,8 +246,8 @@ class Job(object):
             result = results[hostname].result
             command = results[hostname].name.replace(' ','_')
             filename = f'{manufacturer}_{platform}_{command}.textfsm'
-            self._logger.info(f'result of {hostname} manufacturer: {manufacturer} platform {platform}')
-            self._logger.info(f'using template {filename}')
+            logger.info(f'result of {hostname} manufacturer: {manufacturer} platform {platform}')
+            logger.info(f'using template {filename}')
 
             if command == "get_config":
                 # it is either a startup or a running config
@@ -267,7 +267,7 @@ class Job(object):
 
             # check if template exists
             if not os.path.isfile("%s/%s" % (template_directory, filename)):
-                self._logger.error("template %s does not exists" % filename)
+                logger.error("template %s does not exists" % filename)
                 return results
             # now parse result using this template
             try:
@@ -278,7 +278,7 @@ class Job(object):
                 response[hostname][command] = collection_of_results
             except Exception as exc:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
-                self._logger.error("parser error in line %s; got: %s (%s, %s, %s)" % (exc_tb.tb_lineno,
+                logger.error("parser error in line %s; got: %s (%s, %s, %s)" % (exc_tb.tb_lineno,
                                                                                  exc,
                                                                                  exc_type,
                                                                                  exc_obj,

@@ -1,9 +1,9 @@
-import logging
 import os
 import json
 import yaml
 import glob
 import re
+from loguru import logger
 from veritas.tools import tools
 from collections import defaultdict
 from pybatfish.client.session import Session
@@ -18,7 +18,6 @@ class Analyzer(object):
             return None
 
         self._sot = sot
-        self._logger = sot.get_logger()
         self._device = device_name
         self._bf = None
         self._network = None
@@ -38,19 +37,19 @@ class Analyzer(object):
         # the directory where the configs are stored
         self._snapshot_path = self._analyzer_config['batfish'].get('snapshot')
 
-        self._logger.debug(f'setting bf_address: {self._bf_address} snapshot_apth: {self._snapshot_path}')        
-        self._logger.debug('Setting host to connect')
+        logger.debug(f'setting bf_address: {self._bf_address} snapshot_apth: {self._snapshot_path}')        
+        logger.debug('Setting host to connect')
         self._bf = Session(host=self._bf_address)
         if self._network:
             self._bf.set_network(self._network)
 
-        self._logger.debug('Loading configs and questions')
+        logger.debug('Loading configs and questions')
         if self._snapshot:
             self._bf.init_snapshot(self._snapshot_path, snapshot=self._snapshot, overwrite=True)
         else:
             self._bf.init_snapshot(self._snapshot_path, overwrite=True)
 
-        self._logger.getLogger("pybatfish").setLevel(self._logger.INFO)
+        logger.getLogger("pybatfish").setLevel(logger.INFO)
 
         load_questions()
 
@@ -76,7 +75,7 @@ class Analyzer(object):
        return self._bf.q.initIssues().answer().frame()
 
     def analyse(self):
-        self._logger.debug('running questions')
+        logger.debug('running questions')
         devices_properties = self._bf.q.nodeProperties().answer().frame()
         interfaces = self._bf.q.interfaceProperties().answer().frame()
         filtered = interfaces[interfaces.apply(lambda row: row["Interface"].hostname == self._device, axis=1)]

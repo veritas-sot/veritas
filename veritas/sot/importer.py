@@ -1,6 +1,7 @@
 import json
 import os
 import yaml
+from loguru import logger
 from pynautobot import api
 from ..tools import tools
 
@@ -9,7 +10,6 @@ class Importer(object):
 
     def __init__(self, sot):
         self._sot = sot
-        self._logger = sot.get_logger()
         self._nautobot = self._sot.open_nautobot()
 
         self._endpoints = {'manufacturers': self._nautobot.dcim.manufacturers,
@@ -40,22 +40,22 @@ class Importer(object):
         try:
             item = func.create(properties)
             if item:
-                self._logger.debug("entity added to sot")
+                logger.debug("entity added to sot")
             else:
-                self._logger.debug("entity not added to sot")
+                logger.debug("entity not added to sot")
             return item
         except Exception as exc:
-            self._logger.error("entity not added to sot; got exception %s" % exc)
-            self._logger.error(f'properties: {properties}')
+            logger.error("entity not added to sot; got exception %s" % exc)
+            logger.error(f'properties: {properties}')
             return None
 
     def open_file(self, filename):
-        self._logger.debug(f'opening file {filename}')
+        logger.debug(f'opening file {filename}')
         with open(filename) as f:
             try:
                 content = yaml.safe_load(f.read())
             except Exception as exc:
-                self._logger.error("could not read file %s; got exception %s" % (filename, exc))
+                logger.error("could not read file %s; got exception %s" % (filename, exc))
                 return None
         return content
 
@@ -64,16 +64,16 @@ class Importer(object):
         if bulk:
             success = self.add_entity(creator, data)
             if success:
-                self._logger.info(f'{title} successfully added to sot')
+                logger.info(f'{title} successfully added to sot')
             else:
-                self._logger.error(f'could not add {title} to sot')
+                logger.error(f'could not add {title} to sot')
         else:
             for item in data:
                 success = self.add_entity(creator, item)
                 if success:
-                    self._logger.info(f'{title} successfully added to sot')
+                    logger.info(f'{title} successfully added to sot')
                 else:
-                    self._logger.error(f'could not add {title} to sot')
+                    logger.error(f'could not add {title} to sot')
         return success
 
     # -----===== user commands =====----- 
@@ -82,7 +82,7 @@ class Importer(object):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
         endpoint = properties.get('endpoint')
         if not endpoint:
-            self._logger.error(f'please specify endpoint')
+            logger.error(f'please specify endpoint')
             return False
         bulk=properties.get('bulk', False)
 

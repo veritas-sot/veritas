@@ -1,5 +1,6 @@
 from pynautobot import api
 from ..tools import tools
+from loguru import logger
 
 
 class Updater(object):
@@ -7,7 +8,6 @@ class Updater(object):
     def __new__(cls, sot):
         cls._instance = None
         cls._sot = sot
-        cls._logger = sot.get_logger()
         cls._nautobot = cls._sot.open_nautobot()
         cls._endpoints = {'sites': cls._nautobot.dcim.sites,
                           'manufacturers': cls._nautobot.dcim.manufacturers,
@@ -42,21 +42,21 @@ class Updater(object):
         try:
             entity = func.get(**getter)
             if entity is None:
-                self._logger.debug(f'entity not found in sot')
+                logger.debug(f'entity not found in sot')
                 return None
         except Exception as exc:
-            self._logger.error(f'could not get entity; got exception {exc}')
+            logger.error(f'could not get entity; got exception {exc}')
             return None
 
         try:
             success = entity.update(properties)
             if success:
-                self._logger.debug("entity updated in sot")
+                logger.debug("entity updated in sot")
             else:
-                self._logger.debug("entity not updated in sot")
+                logger.debug("entity not updated in sot")
             return entity
         except Exception as exc:
-            self._logger.error("entity not updated in sot; got exception %s" % exc)
+            logger.error("entity not updated in sot; got exception %s" % exc)
             return None
 
         return entity
@@ -67,7 +67,7 @@ class Updater(object):
         values = properties.get('values')
         getter = properties.get('getter')
         if endpoint_name is None or values is None or getter is None:
-            self._logger.error('endpoint, getter, and values must be set')
+            logger.error('endpoint, getter, and values must be set')
             return None
         endpoint = self._endpoints.get(endpoint_name)
         return self.update_entity(endpoint, values, getter)

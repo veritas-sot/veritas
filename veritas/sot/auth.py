@@ -1,6 +1,7 @@
 import logging
 import base64
 import os
+from loguru import logger
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -11,7 +12,6 @@ class Auth(object):
         self._encryption_key_ascii = None
         self._salt_bytes = None
         self._sot = sot
-        self._logger = sot.get_logger()
 
         if 'encryption_key' in named:
             self._encryption_key_ascii = named['encryption_key']
@@ -21,7 +21,7 @@ class Auth(object):
             self._iterations = named['iterations']
         else:
             self._iterations = 400000
-        self._logger.debug(f'salt: {self._salt_bytes} encryption_key: {self._encryption_key_ascii} iterations: {self._iterations}')
+        logger.debug(f'salt: {self._salt_bytes} encryption_key: {self._encryption_key_ascii} iterations: {self._iterations}')
 
     def set_salt(self, salt):
         self._salt_bytes = str.encode(salt)
@@ -62,5 +62,5 @@ class Auth(object):
         try:
             return f.decrypt(token_bytes).decode("utf-8")
         except Exception as e:
-            self._logger.error("Wrong encryption key or salt %s" % e)
+            logger.error("Wrong encryption key or salt %s" % e)
             return None
