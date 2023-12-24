@@ -5,8 +5,52 @@ import os
 import getpass
 import pytricia
 import hashlib
+import sys
 from openpyxl import load_workbook
 
+
+def get_logger_environment(config, cfg_loglevel=None, cfg_loghandler=None):
+    """return database, zeromq and formatter"""
+
+    loglevel = cfg_loglevel.upper() if cfg_loglevel \
+        else config.get('general',{}).get('logging',{}).get('loglevel', 'info')
+    handler_txt = cfg_loghandler if cfg_loghandler \
+        else config.get('general',{}).get('logging',{}).get('handler', 'sys.stdout')
+    
+    # evaluate handler
+    if handler_txt == 'sys.stdout' or handler_txt == 'stdout':
+        loghandler = sys.stdout
+    elif handler_txt == 'sys.stderr' or handler_txt == 'stderr':
+        loghandler = sys.stderr
+    else:
+        loghandler = handler_txt
+
+    if config.get('general',{}).get('logging',{}).get('logtodatabase', False):
+        database = config.get('general',{}).get('logging',{}).get('database')
+    else:
+        database = None
+
+    if config.get('general',{}).get('logging',{}).get('logtozeromq', False):
+        zeromq = config.get('general',{}).get('logging',{}).get('zeromq')
+    else:
+        zeromq = None
+
+    # configure logger
+    if loglevel.upper() == "DEBUG":
+        logger_format = (
+                "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+                "<level>{level: <8}</level> | "
+                "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+                "{extra[extra]} | <level>{message}</level>"
+        )
+    else:
+        logger_format = (
+                "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+                "<level>{level: <8}</level> | "
+                "{extra[extra]} | <level>{message}</level>"
+        )
+
+    return database, zeromq, loglevel, loghandler, logger_format
 
 def get_value_from_dict(dictionary, keys):
     if dictionary is None:
