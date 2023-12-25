@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 from typing import Any, Dict, Type
 from veritas.sot import sot
 from nornir.core.inventory import (
@@ -13,7 +13,6 @@ from nornir.core.inventory import (
     ParentGroups,
 )
 
-logger = logging.getLogger(__name__)
 
 def _get_connection_options(data: Dict[str, Any]) -> Dict[str, ConnectionOptions]:
     cp = {}
@@ -92,13 +91,12 @@ class VeritasInventory:
         select = ['hostname', 'primary_ip4', 'platform'] + self.data.get('sot',[])
         sot_devicelist = nb.select(select) \
                            .using('nb.devices') \
-                           .normalize(True) \
                            .where(self.query)
 
         for device in sot_devicelist:
             hostname = device.get('hostname')
             if not device.get('primary_ip4'):
-                logging.error(f'host {hostname} has no primary IPv4 address... skipping')
+                logger.error(f'host {hostname} has no primary IPv4 address... skipping')
                 continue
             sot_ip4 = device.get('primary_ip4', {}).get('address')
             primary_ip4 = sot_ip4.split('/')[0] if sot_ip4 is not None else hostname

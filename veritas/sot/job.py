@@ -74,7 +74,7 @@ class Job(object):
         self.__port = properties.get('port', self.__port)
         self.__cfg_plain_text = properties.get('plaintext', True)
         self.__user_primary = properties.get('use_primary', self.__user_primary)
-        self.__logger = properties.get('logger', self.__logger)
+        self.__logging = properties.get('logger', self.__logging)
         return self
 
     def add_data(self, *unnamed, **named):
@@ -160,7 +160,7 @@ class Job(object):
         _data = properties.get('data', self.__data)
         _host_groups = properties.get('data', self.__host_groups)
         _groups = properties.get('groups', self.__groups)
-        _logger = properties.get('logger', self.__logger)
+        _logger = properties.get('logger', self.__logging)
         _worker = properties.get('num_workers', 100)
 
         self._nornir = InitNornir(
