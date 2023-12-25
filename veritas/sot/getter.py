@@ -413,7 +413,8 @@ class Getter(object):
         # print(where)
 
         logger.debug(f'select={select} using={using} where={where}')
-        response = self._nautobot.graphql.query(query=query, variables=where).json
+        with logger.catch():
+            response = self._nautobot.graphql.query(query=query, variables=where).json
         # logger.debug(response)
         if 'errors' in response:
             logger.error(f'got error: {response.get("errors")}')
@@ -511,7 +512,7 @@ class Getter(object):
         return data
 
     def _dict_to_query_var(self, data, prefix):
-        """return list containing name of paramter and type and cf field types"""
+        """return list containing name of paramter and type of cf field types"""
         response = []
         cf_fields_types = None
 
@@ -528,7 +529,7 @@ class Getter(object):
                 if cf_name.replace('cf_','') in cf_fields_types:
                     cf_type = cf_fields_types[cf_name.replace('cf_','')]['type']
 
-                if cf_type == "text":
+                if cf_type.lower() == "text":
                     response.append(f'${prefix}{whr}: String')
                 elif cf_type == "Boolean (true/false)":
                     response.append(f'${prefix}{whr}: Boolean')
