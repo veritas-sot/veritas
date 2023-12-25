@@ -122,7 +122,7 @@ class Sot:
         if self._nautobot is None:
             api_version = self._sot_config.get('version','2.0')
             ssl_verify = self._sot_config['ssl_verify']
-            logger.debug(f'nautobot api object created version={api_version} ssl_verify={ssl_verify}')
+            logger.debug(f'nautobot api object created; version={api_version} ssl_verify={ssl_verify}')
             self._nautobot = api(self._sot_config['nautobot_url'], 
                                  token=self._sot_config['nautobot_token'], 
                                  api_version=api_version)

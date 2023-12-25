@@ -7,9 +7,10 @@ import pytricia
 import hashlib
 import sys
 from openpyxl import load_workbook
+from loguru import logger
 
 
-def get_logger_environment(config, cfg_loglevel=None, cfg_loghandler=None):
+def create_logger_environment(config, cfg_loglevel=None, cfg_loghandler=None):
     """return database, zeromq and formatter"""
 
     loglevel = cfg_loglevel.upper() if cfg_loglevel \
@@ -50,6 +51,16 @@ def get_logger_environment(config, cfg_loglevel=None, cfg_loghandler=None):
                 "{extra[extra]} | <level>{message}</level>"
         )
 
+    logger.configure(extra={"extra": "unset"})
+    logger.remove()
+    logger.add(loghandler, level=loglevel, format=logger_format)
+    if database or zeromq:
+        logger.debug(f'enabling veritas messagebus db: {database != None} zeroMQ: {zeromq != None}')
+        logger.add(messagebus.Messagebus(database=database,
+                                         zeromq=zeromq,
+                                         app='onboarding'),
+                level=loglevel)
+
     return database, zeromq, loglevel, loghandler, logger_format
 
 def get_value_from_dict(dictionary, keys):
@@ -69,26 +80,6 @@ def get_value_from_dict(dictionary, keys):
             return nested_dict
 
     return nested_dict
-
-def get_loglevel(level):
-    if level == 'debug':
-        return logging.DEBUG
-    elif level == 'info':
-        return logging.INFO
-    elif level == 'critical':
-        return logging.CRITICAL
-    elif level == 'error':
-        return logging.ERROR
-    else:
-        return logging.NOTSET
-
-def set_loglevel(args, config):
-    loglevel = get_loglevel(args.loglevel) if args.loglevel else \
-        get_loglevel(get_value_from_dict(config, ['general', 'logging', 'level']))
-    
-    log_format = get_value_from_dict(config, ['general', 'logging', 'format'])
-    log_format = '%(asctime)s %(levelname)s:%(message)s' if not log_format else log_format
-    logging.basicConfig(level=loglevel, format=log_format)
 
 def convert_arguments_to_properties(*unnamed, **named):
     """ convert unnamed (dict) and named arguments to a single property dict """
