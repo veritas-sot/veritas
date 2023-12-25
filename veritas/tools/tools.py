@@ -1,4 +1,3 @@
-import logging
 import colorlog
 import yaml
 import os
@@ -6,17 +5,45 @@ import getpass
 import pytricia
 import hashlib
 import sys
+from loguru import logger
 from openpyxl import load_workbook
 from loguru import logger
 
+
+def get_miniapp_config(appname, app_path, config_file=None):
+    """return config of miniapp"""
+
+    config_filename = config_file if config_file else f'{appname}.yaml'
+    local_config_file = f'{app_path}/{config_filename}'
+    local_subdir_config_file = f'{app_path}/conf/{config_filename}'
+    etc_config_file = f'/etc/veritas/miniapps/{appname}/{config_filename}'
+
+    if os.path.exists(local_config_file):
+        filename = local_config_file
+    elif os.path.exists(local_subdir_config_file):
+        filename = local_subdir_config_file
+    elif os.path.exists(etc_config_file):
+        filename = etc_config_file
+    else:
+        logger.critical(f'neither {local_config_file} nor {local_subdir_config_file} ' \
+                        f'or {etc_config_file} exist')
+        return None
+
+    logger.debug(f'reading {filename}')
+    with open(filename) as f:
+        try:
+            return yaml.safe_load(f.read())
+        except Exception as exc:
+            logger.error(f'could not read or parse config')
+            return None
 
 def create_logger_environment(config, cfg_loglevel=None, cfg_loghandler=None):
     """return database, zeromq and formatter"""
 
     loglevel = cfg_loglevel.upper() if cfg_loglevel \
-        else config.get('general',{}).get('logging',{}).get('loglevel', 'info')
+        else config.get('general',{}).get('logger',{}).get('loglevel', 'INFO')
     handler_txt = cfg_loghandler if cfg_loghandler \
-        else config.get('general',{}).get('logging',{}).get('handler', 'sys.stdout')
+        else config.get('general',{}).get('logger',{}).get('handler', 'sys.stdout')
     
     # evaluate handler
     if handler_txt == 'sys.stdout' or handler_txt == 'stdout':
@@ -26,13 +53,13 @@ def create_logger_environment(config, cfg_loglevel=None, cfg_loghandler=None):
     else:
         loghandler = handler_txt
 
-    if config.get('general',{}).get('logging',{}).get('logtodatabase', False):
-        database = config.get('general',{}).get('logging',{}).get('database')
+    if config.get('general',{}).get('logger',{}).get('logtodatabase', False):
+        database = config.get('general',{}).get('logger',{}).get('database')
     else:
         database = None
 
-    if config.get('general',{}).get('logging',{}).get('logtozeromq', False):
-        zeromq = config.get('general',{}).get('logging',{}).get('zeromq')
+    if config.get('general',{}).get('logger',{}).get('logtozeromq', False):
+        zeromq = config.get('general',{}).get('logger',{}).get('zeromq')
     else:
         zeromq = None
 
@@ -104,7 +131,7 @@ def convert_arguments_to_properties(*unnamed, **named):
             elif isinstance(param, list):
                 return param
             else:
-                logging.error(f'cannot use paramater {param} / {type(param)} as value')
+                logger.error(f'cannot use paramater {param} / {type(param)} as value')
     for key,value in named.items():
             properties[key] = value
     
@@ -179,7 +206,7 @@ def get_prefix_path(prefixe, ip):
     try:
         prefix = pyt.get(ip)
     except Exception as exc:
-        logging.error(f'prefix not found; using 0.0.0.0/0')
+        logger.error(f'prefix not found; using 0.0.0.0/0')
         prefix = "0.0.0.0/0"
     prefix_path.append(prefix)
 
