@@ -73,11 +73,13 @@ class Getter(object):
         """return device by using its primary IP"""
         self._nautobot = self._sot.open_nautobot()
         interfaces = self.query(select=['interfaces'], 
-                            using='nb.ipaddresses',
-                            where={'address': ip}, 
-                            mode='sql')[0].get('interfaces')
-        if interfaces and len(interfaces) > 0:
-            device = interfaces[0].get('device',{}).get('name')
+                                using='nb.ipaddresses',
+                                where={'address': ip}, 
+                                mode='sql')
+
+        if interfaces and len(interfaces) > 0 and len(interfaces[0].get('interfaces', [])) > 0:
+            device = interfaces[0].get('interfaces', {})[0].get('device',{}).get('name')
+            logger.debug(f'found device in sot; device={device}')
             if cast:
                 return device
             else:
