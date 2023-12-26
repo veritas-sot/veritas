@@ -8,20 +8,30 @@ import sys
 from loguru import logger
 from openpyxl import load_workbook
 from loguru import logger
+from veritas.messagebus import messagebus
 
 
 def get_miniapp_config(appname, app_path, config_file=None):
-    """return config of miniapp"""
+    """return config of miniapp
+    
+    1. prio: config in local directory
+    2. prio: config in local ./conf/ directory
+    3. prio: config in homedirectory ~/.veritas
+    4. prio: config in /etc/veritas/
+    """
 
     config_filename = config_file if config_file else f'{appname}.yaml'
     local_config_file = f'{app_path}/{config_filename}'
     local_subdir_config_file = f'{app_path}/conf/{config_filename}'
+    homedir_config_file = f'{os.path.expanduser("~")}/.veritas/miniapps/{appname}/{config_filename}'
     etc_config_file = f'/etc/veritas/miniapps/{appname}/{config_filename}'
 
     if os.path.exists(local_config_file):
         filename = local_config_file
     elif os.path.exists(local_subdir_config_file):
         filename = local_subdir_config_file
+    elif os.path.exists(homedir_config_file):
+        filename = homedir_config_file
     elif os.path.exists(etc_config_file):
         filename = etc_config_file
     else:
@@ -84,6 +94,7 @@ def create_logger_environment(config, cfg_loglevel=None, cfg_loghandler=None):
     if database or zeromq:
         logger.debug(f'enabling veritas messagebus db: {database != None} zeroMQ: {zeromq != None}')
         logger.add(messagebus.Messagebus(database=database,
+                                         use_queue=False,
                                          zeromq=zeromq,
                                          app='onboarding'),
                 level=loglevel)
