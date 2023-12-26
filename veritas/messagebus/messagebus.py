@@ -48,9 +48,6 @@ class Messagebus():
                        filter=self._zeromq_filter,
                        serialize=True)
 
-        # list of sinks
-        self._sinks = []
-
     def write(self, message):
         record = message.record
         levelno = record['level'].no
