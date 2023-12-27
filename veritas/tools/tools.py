@@ -1,4 +1,3 @@
-import colorlog
 import yaml
 import os
 import getpass
