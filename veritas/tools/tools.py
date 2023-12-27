@@ -141,6 +141,8 @@ def convert_arguments_to_properties(*unnamed, **named):
                         return tup
             elif isinstance(param, list):
                 return param
+            elif param is None:
+                pass
             else:
                 logger.error(f'cannot use paramater {param} / {type(param)} as value')
     for key,value in named.items():

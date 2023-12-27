@@ -19,6 +19,9 @@ class Configparser(object):
         self._template_filename = None
         self._sot_config = sot.get_config()
         self._could_not_parse = False
+        # naming is used to save the exact spelling of the interface
+        # nxos and ios differs using Port-channel/Port-Channel/port-channel
+        self._naming = {}
         filename = "%s/%s" % (
             os.path.abspath(os.path.dirname(__file__)),
             self._sot_config['configparser'].get('config') 
@@ -59,6 +62,13 @@ class Configparser(object):
         
         return ttp_template
 
+    def _save_naming(self):
+        for interface in self._parsed_config[0].get('interfaces', {}):
+            if 'Port-channel' in interface:
+                self._naming["port-channel"] = "Port-channel"
+            if 'port-channel' in interface:
+                self._naming["port-channel"] = "port-channel"
+
     def format(self, format):
         self._output_format = format
         return self
@@ -81,6 +91,7 @@ class Configparser(object):
                                log_level="CRITICAL")
             self._parser.parse()
             self._parsed_config = self._parser.result(format='raw')[0]
+            self._save_naming()
             return True
         except Exception as exc:
             if self._empty_config:
@@ -141,6 +152,9 @@ class Configparser(object):
                                         'name': 'trunked VLAN'})
 
         return global_vlans, svi, trunk_vlans
+
+    def get_name(self, name):
+        return self._naming.get(name.lower(), name)
 
     def get_device_config(self):
         return self._device_config
