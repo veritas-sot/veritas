@@ -188,7 +188,7 @@ class Selection(object):
         return response
 
     def _simple_sql_query(self, properties, select, using):
-        """returns data of simple SQL queries
+        """return data of simple SQL queries
            This is a query that runs independently, so no additional data is required.
         """
 

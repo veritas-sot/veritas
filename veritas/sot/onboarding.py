@@ -287,7 +287,8 @@ class Onboarding:
         for vlan in self._vlans:
             vid = vlan.get('vid')
             location = vlan.get('location')
-            uuid = self._sot.get.id(item='vlan', vid=vid, location=location)
+            # uuid = self._sot.get.id(item='vlan', vid=vid, location=location)
+            uuid = self._sot.get.vlans(vid=vid, location=location, get_single_id=True)
             if uuid:
                 logger.debug(f'vlan vid={vid} location={location} found in nautobot')
             else:
