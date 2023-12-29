@@ -18,8 +18,6 @@ class Getter(object):
         cls._nautobot = None
         cls._output_format = None
         cls._use = None
-        cls._cache_dirty = True
-        cls._cache = {'locations':{}, 'vlan': {}, 'tag': {}, 'device': {} }
 
         # singleton
         if cls._instance is None:
@@ -54,10 +52,11 @@ class Getter(object):
         logger.debug("no VLAN found")
         return None
 
-    # -----===== internal def =====-----
-
-
     # -----===== user command =====-----
+
+    def nautobot(self):
+        self._nautobot = self._sot.open_nautobot()
+        return self._nautobot
 
     def device(self, name, by_id=False):
         """return device by using its name"""
@@ -124,7 +123,7 @@ class Getter(object):
                                                       name=interface_name)
 
     def interfaces(self, *unnamed, **named):
-        """returns ALL interfaces of device"""
+        """return ALL interfaces of device"""
         properties = tools.convert_arguments_to_properties(unnamed, named)
 
         device = properties.get('device')
@@ -139,51 +138,13 @@ class Getter(object):
             logger.debug(f'getting ALL Interface of {device}')
             return self._nautobot.dcim.interfaces.filter(device=device)
 
+    def vlans(self,  *unnamed, **named):
+        return self._sot.ipam.get_vlans(*unnamed, **named)
+
     def use(self, use):
         # use another pattern instead of name__ie when query devices
         self._use = use
         return self
-
-    def load_cache(self):
-        all_tags = self._sot.select('tags') \
-                         .using('nb.general') \
-                         .where()
-
-        all_vlans = self._sot.select('id, vid, location') \
-                         .using('nb.vlans') \
-                         .where()
-        
-        all_sites = self._sot.select('locations') \
-                         .using('nb.general') \
-                         .where()
-
-        for tag in all_tags['tags']:
-            tag_id = tag['id']
-            scopes = tag['content_types']
-            name = tag['name']
-            for scope in scopes:
-                scope_id = scope['id']
-                scope_name = self.scope_id_to_name.get(scope_id, scope_id)
-                if scope_name not in self._cache['tag']:
-                    self._cache['tag'][scope_name] = {}
-                self._cache['tag'][scope_name][name] = tag_id
-
-        for vlan in all_vlans:
-            site = vlan.get('location',{}).get('name') if vlan.get('location') else "global"
-            vlan_vid = vlan['vid']
-            vlan_id = vlan['id']
-            if site not in self._cache['vlan']:
-                self._cache['vlan'][site] = {}
-            self._cache['vlan'][site][vlan_vid] = vlan_id
-
-        for site in all_sites['locations']:
-            site_name = site.get('name')
-            site_id = site.get('id')
-            if site_name not in self._cache['locations']:
-                self._cache['locations'][site_name] = {}
-            self._cache['locations'][site_name] = site_id
-
-        self._cache_dirty = False
 
     def hldm(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
@@ -200,8 +161,7 @@ class Getter(object):
         returns ID of device, site, vlan or tag
         this is used by our onboarding APP
         """
-        # if self._cache_dirty:
-        #     self.load_cache()
+
         properties = tools.convert_arguments_to_properties(unnamed, named)
 
         self._nautobot = self._sot.open_nautobot()
@@ -211,14 +171,9 @@ class Getter(object):
 
         if item == "device":
             hostname = properties.get('name')
-            if hostname in self._cache['device']:
-                logger.debug(f'getting id from cache')
-                return self._cache['device'][hostname]
             try:
                 device = self._nautobot.dcim.devices.get(**properties)
                 if device:
-                    logger.debug(f'adding {device.id} to cache')
-                    self._cache['device'][hostname] = device.id
                     return device.id
                 else:
                     logger.error(f'unknown device {hostname}')
@@ -228,14 +183,9 @@ class Getter(object):
                 return None
         elif item == "location":
             location_name = properties.get('name')
-            if location_name in self._cache['location']:
-                logger.debug(f'getting id from cache')
-                return self._cache['location'][location_name]
             try:
                 location = self._nautobot.dcim.locations.get(**properties)
                 if location:
-                    logger.debug(f'adding {location.id} to cache')
-                    self._cache['location'][location_name] = location.id
                     return location.id
                 else:
                     logger.error(f'unknown location {location_name}')
@@ -246,40 +196,20 @@ class Getter(object):
         elif item =="vlan":
             vid = properties.get('vid')
             location_name = properties.get('location')
+
             vlan = self._get_vlan(vid, location_name)
+            print(vlan.description)
             if vlan:
                 return vlan.id
             else:
                 return None
-
-            # id = self._cache['vlan'].get(location_name, {}).get(vid, None)
-            # if id:
-            #     logger.debug(f'using cached id')
-            #     return id
-            # else:
-            #     vlan = self._get_vlan(vid, location_name)
-            #     if vlan is None:
-            #         return None
-            #     else:
-            #         if location_name not in self._cache['vlan']:
-            #             self._cache['vlan'][location_name] = {}
-            #         self._cache['vlan'][location_name][vid] = vlan.id
-            #         return vlan.id
         elif item =="tag":
             entity = properties.get('name')
-            content_types = properties.get('content_types')
-            id = self._cache['tag'].get(content_types, {}).get(entity, None)
-            if id:
-                logger.debug(f'using cached id')
-                return id
             try:
                 tag = self._nautobot.extras.tags.get(**properties)
                 if tag:
-                    logger.debug(f'adding {content_types} {tag.id} to cache')
-                    self._cache['tag'][content_types] = tag.id
                     return tag.id
                 else:
-                    logger.error(f'unknown tag {entity}')
                     return None
             except Exception as exc:
                 logger.error(f'got exception {exc}')
