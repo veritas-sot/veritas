@@ -576,7 +576,14 @@ queries:
         }
         role @include(if: $get_role) {name}
         description @include(if: $get_description)
-        location @include(if: $get_location) {name}
+        location @include(if: $get_location) {
+          name
+          id @include(if: $get_id)
+          location_type {
+            id @include(if: $get_id)
+            name
+          }
+        }
         vlan_group @include(if: $get_vlan_group) {name}
         tenant @include(if: $get_tenant) {
             name
