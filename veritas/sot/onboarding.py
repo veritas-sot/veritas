@@ -385,10 +385,11 @@ class Onboarding:
                 logger.debug(f'added IP {ip_address} to nautobot')
             except Exception as exc:
                 if 'duplicate key value violates unique constraint' in str(exc):
-                    logger.debug(f'IP {ip_address} address already exists')
+                    logger.debug(f'IP {ip_address} namespace: {namespace} address already exists; return_ip={self._use_ip_if_already_exists}')
                     if self._use_ip_if_already_exists:
-                        added_addresses.append(self._nautobot.ipam.ip_addresses.get(
-                                address=ip_address, namespace=namespace))
+                        addr = self._nautobot.ipam.ip_addresses.get(address=ip_address.split('/')[0], namespace=namespace)
+                        logger.debug(f'got IP {addr}')
+                        added_addresses.append(addr)
                 else:
                     logger.error(exc)
         return added_addresses 
