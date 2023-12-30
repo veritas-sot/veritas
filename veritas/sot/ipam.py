@@ -113,7 +113,10 @@ class Ipam(object):
 
         # if get_single_id is set and we have only one item we return the id only
         if get_single_id and len(response) == 1:
-            return response[0].get('id')
+            id = response[0].get('id')
+            if get_obj:
+                return self._nautobot.ipam.vlans.get(id=id)
+            return id
         if get_obj:
             objs = []
             for vlan in response:

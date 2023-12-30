@@ -3,66 +3,25 @@ import json
 import itertools
 from loguru import logger
 from pynautobot import api
-from ..tools import tools
+from veritas.tools import tools
 
 
 class Getter(object):
 
-    scope_id_to_name = {'3': 'dcim.device',
-                        '4': 'dcim.interface',
-                        '11': 'ipam.prefix'}
-
-    def __new__(cls, sot):
-        cls._instance = None
-        cls._sot = None
-        cls._nautobot = None
-        cls._output_format = None
-        cls._use = None
-
-        # singleton
-        if cls._instance is None:
-            cls._instance = super(Getter, cls).__new__(cls)
-            # Put any initialization here
-            cls._sot = sot
-        return cls._instance
-
-    def __getattr__(self, item):
-        if item == "as_object" or item == "as_obj":
-            self._output_format = "obj"
-        elif item == "as_json":
-            self._output_format = "json"
-        elif item == "as_dict":
-            self._output_format = "dict"
-        return self
-
-    def _get_vlan(self, vid, location):
-        logger.debug(f'getting vlan: {vid} / {location}')
+    def __init__(self, sot):
+        self._instance = None
+        self._sot = sot
         self._nautobot = self._sot.open_nautobot()
-
-        vlans = self._nautobot.ipam.vlans.filter(vid=vid)
-        for vlan in vlans:
-            try:
-                location_name = vlan.location.name
-            except Exception:
-                location_name = None
-
-            if location_name == location:
-                return vlan
-
-        logger.debug("no VLAN found")
-        return None
 
     # -----===== user command =====-----
 
     def nautobot(self):
-        self._nautobot = self._sot.open_nautobot()
         return self._nautobot
 
     def device(self, name, by_id=False):
         """return device by using its name"""
         # name can be either the name (in most cases) or the id
 
-        self._nautobot = self._sot.open_nautobot()
         if by_id:
             return self._nautobot.dcim.devices.get(id=name)
         else:
@@ -70,7 +29,6 @@ class Getter(object):
 
     def device_by_ip(self, ip, cast=False):
         """return device by using its primary IP"""
-        self._nautobot = self._sot.open_nautobot()
         interfaces = self.query(select=['interfaces'], 
                                 using='nb.ipaddresses',
                                 where={'address': ip}, 
@@ -87,7 +45,6 @@ class Getter(object):
 
     def primary_ip4(self, name, cast=False):
         """return primary IP4 of the device"""
-        self._nautobot = self._sot.open_nautobot()
         device = self._nautobot.dcim.devices.get(name=name)
         if cast:
             return device.primary_ip4.display
@@ -96,7 +53,6 @@ class Getter(object):
 
     def primary_ip6(self, name, cast=False):
         """return primary IP6 of the device"""
-        self._nautobot = self._sot.open_nautobot()
         device = self._nautobot.dcim.devices.get(name=name)
         if cast:
             return device.primary_ip6.display
@@ -110,8 +66,6 @@ class Getter(object):
         device = properties.get('device')
         device_id = properties.get('device_id')
         interface_name = properties.get('name')
-
-        self._nautobot = self._sot.open_nautobot()
 
         if device_id:
             logger.debug(f'getting Interface {interface_name} of {device_id}')
@@ -129,8 +83,6 @@ class Getter(object):
         device = properties.get('device')
         device_id = properties.get('device_id')
 
-        self._nautobot = self._sot.open_nautobot()
-
         if device_id:
             logger.debug(f'getting ALL Interface of {device_id}')
             return self._nautobot.dcim.interfaces.filter(device_id=device_id)
@@ -140,11 +92,6 @@ class Getter(object):
 
     def vlans(self,  *unnamed, **named):
         return self._sot.ipam.get_vlans(*unnamed, **named)
-
-    def use(self, use):
-        # use another pattern instead of name__ie when query devices
-        self._use = use
-        return self
 
     def hldm(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(unnamed, named)
@@ -156,65 +103,6 @@ class Getter(object):
         where = {'name': properties.get('device')}
         return self.query(select=select, using=using, where=where)
     
-    def id(self, *unnamed, **named):
-        """
-        returns ID of device, site, vlan or tag
-        this is used by our onboarding APP
-        """
-
-        properties = tools.convert_arguments_to_properties(unnamed, named)
-
-        self._nautobot = self._sot.open_nautobot()
-        item = properties.get('item')
-        del properties['item']
-        logger.debug(f'getting id of {item}; parameter {properties}')
-
-        if item == "device":
-            hostname = properties.get('name')
-            try:
-                device = self._nautobot.dcim.devices.get(**properties)
-                if device:
-                    return device.id
-                else:
-                    logger.error(f'unknown device {hostname}')
-                    return None
-            except Exception as exc:
-                logger.error(f'got exception {exc}')
-                return None
-        elif item == "location":
-            location_name = properties.get('name')
-            try:
-                location = self._nautobot.dcim.locations.get(**properties)
-                if location:
-                    return location.id
-                else:
-                    logger.error(f'unknown location {location_name}')
-                    return None
-            except Exception as exc:
-                logger.error(f'got exception {exc}')
-                return None
-        elif item =="vlan":
-            vid = properties.get('vid')
-            location_name = properties.get('location')
-
-            vlan = self._get_vlan(vid, location_name)
-            print(vlan.description)
-            if vlan:
-                return vlan.id
-            else:
-                return None
-        elif item =="tag":
-            entity = properties.get('name')
-            try:
-                tag = self._nautobot.extras.tags.get(**properties)
-                if tag:
-                    return tag.id
-                else:
-                    return None
-            except Exception as exc:
-                logger.error(f'got exception {exc}')
-                return None
-
     def changes(self, *unnamed, **named):
         pass
 
@@ -223,7 +111,6 @@ class Getter(object):
 
         response = {}
 
-        self._nautobot = self._sot.open_nautobot()
         cf_types = self._nautobot.extras.custom_fields.all()
         for t in cf_types:
             response[t.display] = {'type': str(t.type)}
@@ -242,6 +129,8 @@ class Getter(object):
             return self._execute_sql_query(select=select, using=using, where=where)
         else:
             return self._execute_gql_query(select=select, using=using, where=where)
+
+    # -----===== internals =====-----
 
     def _execute_sql_query(self, *unnamed, **named):
         """execute sql like query and returns data"""
@@ -378,7 +267,6 @@ class Getter(object):
     def _execute_gql_query(self, *unnamed, **named):
         """execute GraphQL based queries"""
 
-        self._nautobot = self._sot.open_nautobot()
         variables = {}
         query_final_vars = []
 
