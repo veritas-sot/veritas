@@ -1,9 +1,12 @@
-import logging
 import glob
 import os
 import yaml
 import textfsm
 import sys
+import importlib
+import logging
+from loguru import logger
+from importlib import resources
 from scrapli import Scrapli
 from scrapli_cfg import ScrapliCfg
 from veritas.tools import tools
@@ -27,8 +30,6 @@ def get_loglevel(level):
 class Devicemanagement:
 
     def __init__(self, **kwargs):
-        self.__facts_dir = '../conf/devicemanagement/facts'
-        self.__textfsm_dir = '../textfsm'
         self.__ip_address = None
         self.__platform = None
         self.__manufacturer = None
@@ -64,7 +65,7 @@ class Devicemanagement:
             self._output_format = "parsed"
         elif item == "as_raw":
             self._output_format = "raw"
-        logging.debug(f'setting putput to {self._output_format}')
+        logger.debug(f'setting putput to {self._output_format}')
         return self
 
     def open(self):
@@ -92,7 +93,8 @@ class Devicemanagement:
             "auth_strict_key": False,
             "platform": driver,
             "port": self.__port,
-            "ssh_config_file": "~/.ssh/ssh_config"
+            "ssh_config_file": True
+            #"ssh_config_file": "~/.ssh/ssh_config"
         }
 
         self.__connection = Scrapli(**device)
@@ -101,20 +103,20 @@ class Devicemanagement:
             self.__connection.open()
             self.__scrapli_cfg = ScrapliCfg(conn=self.__connection)
         except Exception as exc:
-            logging.error(f'could not connect to {self.__ip_address}')
+            logger.error(f'could not connect to {self.__ip_address}')
             return False
 
         return True
 
     def close(self):
-        logging.debug("closing connection to device (%s)" % self.__ip_address)
+        logger.debug("closing connection to device (%s)" % self.__ip_address)
         try:
             self.__connection.close()
         except:
-            logging.error('connection was not open')
+            logger.error('connection was not open')
 
     def get_config(self, configtype):
-        logging.debug("send show %s to device (%s)" % (configtype, self.__ip_address))
+        logger.debug("send show %s to device (%s)" % (configtype, self.__ip_address))
         if not self.__connection:
                 if not self.open():
                     return None
@@ -123,22 +125,22 @@ class Devicemanagement:
 
     def send_and_parse_command(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        BASEDIR = os.path.abspath(os.path.dirname(__file__))
-        directory = os.path.join(BASEDIR, self.__textfsm_dir)
+        directory = importlib.resources.files('veritas.devicemanagement.data.textfsm')
+        logger.debug(f'directory to read textfsm is {directory}')
         result = {}
         mapped = {}
         commands = properties.get('commands')
 
         for cmd in commands:
             command = cmd["command"]["cmd"]
-            logging.debug("sending command %s" % command)
+            logger.debug("sending command %s" % command)
             if not self.__connection:
                 if not self.open():
                     return None
             try:
                 response = self.__connection.send_command(command)
             except Exception as exc:
-                logging.error("could not send command %s to device; got exception %s" % (command, exc))
+                logger.error("could not send command %s to device; got exception %s" % (command, exc))
                 return None 
 
             if self._output_format == "raw":
@@ -146,26 +148,26 @@ class Devicemanagement:
                 continue
 
             filename = cmd["command"]["template"].get(self.__platform)
-            logging.debug("filename is %s" % filename)
+            logger.debug("filename is %s" % filename)
             if filename is None:
-                logging.error("no template for platform %s configured" % self.__platform)
+                logger.error("no template for platform %s configured" % self.__platform)
                 result[command] = {}
 
             if not os.path.isfile("%s/%s" % (directory, filename)):
-                logging.error("template %s does not exists" % filename)
+                logger.error("template %s does not exists" % filename)
                 result[command] = {}
 
             try:
-                logging.debug("reading template")
+                logger.debug("reading template")
                 template = open("%s/%s" % (directory, filename))
                 re_table = textfsm.TextFSM(template)
-                logging.debug("parsing response")
+                logger.debug("parsing response")
                 fsm_results = re_table.ParseText(response.result)
                 collection_of_results = [dict(zip(re_table.header, pr)) for pr in fsm_results]
                 result[command] = collection_of_results
             except Exception as exc:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
-                logging.error("parser error in line %s; got: %s (%s, %s, %s)" % (exc_tb.tb_lineno,
+                logger.error("parser error in line %s; got: %s (%s, %s, %s)" % (exc_tb.tb_lineno,
                                                                                  exc,
                                                                                  exc_type,
                                                                                  exc_obj,
@@ -176,7 +178,7 @@ class Devicemanagement:
             # the mapping is used to rename parameters from the result eg.
             # INTF to interface in show ip int brief
             if 'mapping' in cmd["command"]:
-                logging.debug(f'mapping is enabled {cmd["command"]["mapping"]}')
+                logger.debug(f'mapping is enabled {cmd["command"]["mapping"]}')
                 if command not in mapped:
                     mapped[command] = []
                 for res in result[command]:
@@ -195,40 +197,40 @@ class Devicemanagement:
         return result
 
     def get_facts(self):
-        BASEDIR = os.path.abspath(os.path.dirname(__file__))
-        directory = os.path.join(BASEDIR, self.__facts_dir)
+        directory = importlib.resources.files('veritas.devicemanagement.data.facts')
+        logger.debug(f'reading facts config from {directory}')
+
         files = []
         facts = {}
         values = {}
         # read all facts from config
         for filename in glob.glob(os.path.join(directory, "*.yaml")):
             with open(filename) as f:
-                logging.debug("opening file %s to read facts config" % filename)
+                logger.debug("opening file %s to read facts config" % filename)
                 try:
                     config = yaml.safe_load(f.read())
                     if config is None:
-                        logging.error("could not parse file %s" % filename)
+                        logger.error("could not parse file %s" % filename)
                         continue
                 except Exception as exc:
-                    logging.error("could not read file %s; got exception %s" % (filename, exc))
+                    logger.error("could not read file %s; got exception %s" % (filename, exc))
                     continue
 
                 active = config.get('active')
                 name = config.get('name')
                 if not active:
-                    logging.debug("config context %s in %s is not active" % (name, filename))
+                    logger.debug("config context %s in %s is not active" % (name, filename))
                     continue
 
                 file_vendor = config.get("vendor")
                 if file_vendor is None or file_vendor != self.__manufacturer:
-                    logging.debug("skipping file %s (%s)" % (filename, file_vendor))
+                    logger.debug("skipping file %s (%s)" % (filename, file_vendor))
                     continue
 
                 files.append(os.path.basename(filename))
                 values = self.send_and_parse_command(commands=config['facts'])
                 if values is None:
                     return None
-                # print(json.dumps(values, indent=4))
 
         facts["manufacturer"] = self.__manufacturer
         if "show version" in values:
@@ -261,7 +263,7 @@ class Devicemanagement:
         facts['fqdn'] = facts['fqdn'].lower()
         facts['hostname'] = facts['hostname'].lower()
 
-        logging.debug("processed %s to get facts of device" % files)
+        logger.debug("processed %s to get facts of device" % files)
         #print(json.dumps(facts, indent=4))
 
         return facts
@@ -288,14 +290,14 @@ class Devicemanagement:
         if not self.__connection:
                 if not self.open():
                     return None
-        logging.debug(f'writing config on device {self.__ip_address}')
+        logger.debug(f'writing config on device {self.__ip_address}')
         return self.__scrapli_cfg.save_config()
 
     def send_configs_from_file(self, configfile, hostname="", dry_run=False):
         if not self.__connection:
                 if not self.open():
                     return False
-        logging.debug(f'sending config {configfile} to device {hostname}/{self.__ip_address}')
+        logger.debug(f'sending config {configfile} to device {hostname}/{self.__ip_address}')
         if dry_run:
             print(f'sending config {configfile} to device {hostname}/{self.__ip_address}')
             return True

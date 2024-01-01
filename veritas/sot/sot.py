@@ -1,7 +1,8 @@
-import importlib.machinery
 import os
 import json
 import yaml
+import importlib.machinery
+from importlib import resources
 from dotenv import load_dotenv, dotenv_values
 from pynautobot import api
 from loguru import logger
@@ -21,9 +22,6 @@ from . import job
 
 class Sot:
 
-    BASEDIR = os.path.abspath(os.path.dirname(__file__))
-    DEFAULT_CONFIGFILE = "../conf/sot/sot/config.yaml"
-
     def __init__(self, **properties):
         # initialize variables
         self.__onboarding = None
@@ -38,9 +36,8 @@ class Sot:
         self.__job = None
         self._sot_config = {}
 
-        filename = properties['sot_config'] if 'sot_config' in properties else self.DEFAULT_CONFIGFILE
-        logger.debug("reading SOT config %s/%s" % (self.BASEDIR, filename))
-        with open(f'{self.BASEDIR}/{filename}') as f:
+        logger.debug(f'reading SOT config')
+        with resources.open_text('veritas.sot.data', 'config.yaml') as f:
             self._sot_config = yaml.safe_load(f.read())
 
         self._sot_config['nautobot_url'] = properties.get('url')
