@@ -4,7 +4,7 @@ import yaml
 import glob
 import re
 from loguru import logger
-from veritas.tools import tools
+from ..tools import tools
 from collections import defaultdict
 from pybatfish.client.session import Session
 from pybatfish.question.question import load_questions

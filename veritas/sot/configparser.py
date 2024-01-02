@@ -1,6 +1,7 @@
 import os
 import json
 import yaml
+import importlib
 from ..tools import tools
 from collections import defaultdict
 from ttp import ttp
@@ -22,11 +23,9 @@ class Configparser(object):
         # naming is used to save the exact spelling of the interface
         # nxos and ios differs using Port-channel/Port-Channel/port-channel
         self._naming = {}
-        filename = "%s/%s" % (
-            os.path.abspath(os.path.dirname(__file__)),
-            self._sot_config['configparser'].get('config') 
-        )
-        with open(filename) as f:
+
+        logger.debug(f'reading configparser config')
+        with importlib.resources.open_text('veritas.sot.data.configparser', 'config.yaml') as f:
             self._my_config = yaml.safe_load(f.read())
 
         if not self.parse(*unnamed, **named):
@@ -34,40 +33,6 @@ class Configparser(object):
 
     def could_not_parse(self):
         return self._could_not_parse
-
-    def _get_template(self, properties):
-        basedir = os.path.abspath(os.path.dirname(__file__))
-
-        if self._template is not None:
-            return self._template
-        if 'template' in properties:
-            return properties.get('template')
-
-        if self._template_filename is None:
-            platform = properties.get('platform','ios')
-            # use default template that is configured in config
-            filename = self._my_config.get('templates',{}).get(platform, None)
-            logger.debug(f'using ttp template {filename}')
-        else:
-            filename = self._template_filename
-        if filename is None:
-            logger.error(f'please configure correct template filename for {platform}')
-            return None
-        try:
-             with open("%s/%s" % (basedir, filename)) as f:
-                ttp_template = f.read()
-        except:
-            logger.error(f'could not read template')
-            return None
-        
-        return ttp_template
-
-    def _save_naming(self):
-        for interface in self._parsed_config[0].get('interfaces', {}):
-            if 'Port-channel' in interface:
-                self._naming["port-channel"] = "Port-channel"
-            if 'port-channel' in interface:
-                self._naming["port-channel"] = "port-channel"
 
     def format(self, format):
         self._output_format = format
@@ -305,3 +270,39 @@ class Configparser(object):
                     return True
 
         return False
+
+    def _save_naming(self):
+        for interface in self._parsed_config[0].get('interfaces', {}):
+            if 'Port-channel' in interface:
+                self._naming["port-channel"] = "Port-channel"
+            if 'port-channel' in interface:
+                self._naming["port-channel"] = "port-channel"
+
+    def _get_template(self, properties):
+        if self._template is not None:
+            return self._template
+        if 'template' in properties:
+            return properties.get('template')
+
+        if self._template_filename is None:
+            platform = properties.get('platform','ios')
+            # use default template that is configured in config
+            filename = self._my_config.get('templates',{}).get(platform, None)
+            logger.debug(f'using ttp template {filename}')
+        else:
+            filename = self._template_filename
+        if filename is None:
+            logger.error(f'please configure correct template filename for {platform}')
+            return None
+
+        file = importlib.resources.files('veritas.sot.data.configparser.templates').joinpath(filename)
+        try:
+            logger.debug(f'reading template {file}')
+            with open(file) as f:
+                ttp_template = f.read()
+        except:
+            logger.error(f'could not read template {file}')
+            return None
+        
+        return ttp_template
+
