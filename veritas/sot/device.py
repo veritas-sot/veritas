@@ -2,13 +2,13 @@ import json
 import re
 import sys
 from loguru import logger
-from . import ipam
 from pynautobot import api
 from pynautobot.models.dcim import Devices
 from pynautobot.models.dcim import Interfaces as PyInterfaces
 from pynautobot.models.ipam import IpAddresses
 from .. import devicemanagement as dm
 from ..tools import tools
+from . import ipam
 
 
 class Device:

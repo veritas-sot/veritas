@@ -9,7 +9,7 @@ from loguru import logger
 from importlib import resources
 from scrapli import Scrapli
 from scrapli_cfg import ScrapliCfg
-from veritas.tools import tools
+from ..tools import tools
 
 
 def get_loglevel(level):

@@ -178,7 +178,10 @@ class Onboarding:
                 ip_addresses = interface.get('ip_addresses',[])
                 # an interface can have more than one IP, so it is a list of IPs!!!
                 if len(ip_addresses) > 0:
-                    logger.debug(f'found {len(ip_addresses)} IP(s) on device {device}/{interface.get("name")}')
+                    logger.debug(f'found {len(ip_addresses)} IP(s) on device {device} {interface.get("name")}')
+                    # add description to each IP address
+                    for addr in ip_addresses:
+                        addr['description'] = f'{device} {interface.get("name")}'
                     if self._add_prefix:
                         prefix = self._add_prefix_to_nautobot(ip_addresses)
 
@@ -225,7 +228,10 @@ class Onboarding:
             # an interface can have more than one IP, so it is a list of IPs!!!
             # we are now (re)adding all assigments
             if len(ip_addresses) > 0:
-                logger.debug(f'found {len(ip_addresses)} IP(s) on device {device}/{interface.get("name")}')
+                logger.debug(f'found {len(ip_addresses)} IP(s) on device {device} {interface.get("name")}')
+                # add description to each IP address
+                for addr in ip_addresses:
+                    addr['description'] = f'{device} {interface.get("name")}'
                 if self._add_prefix:
                     prefix = self._add_prefix_to_nautobot(ip_addresses)
                 
@@ -373,10 +379,13 @@ class Onboarding:
             ip_address = address.get('address')
             status = address.get('status', {'name': 'Active'})
             namespace = address.get('parent',{}).get('namespace',{}).get('name','Global')
+            description = address.get('description')
 
             properties = {'address': ip_address,
                           'status': status,
                           'namespace': namespace}
+            if description:
+                properties.update({'description': description})
             if 'role' in address and address['role']:
                 properties.update({'role': address['role']})
             if 'tags' in address and len(address['tags']) > 0:

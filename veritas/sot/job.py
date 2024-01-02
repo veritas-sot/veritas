@@ -4,9 +4,9 @@ import json
 import sys
 import textfsm
 from loguru import logger
-from veritas.sot import sot as sot
-from veritas.inventory import veritasInventory
-from veritas.tools import tools
+from ..sot import sot as sot
+from ..inventory import veritasInventory
+from ..tools import tools
 from nornir import InitNornir
 from nornir.core.plugins.inventory import InventoryPluginRegister
 from nornir_napalm.plugins.tasks import napalm_get, napalm_ping

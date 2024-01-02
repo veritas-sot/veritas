@@ -37,7 +37,7 @@ class Sot:
         self._sot_config = {}
 
         logger.debug(f'reading SOT config')
-        with resources.open_text('veritas.sot.data', 'config.yaml') as f:
+        with resources.open_text('veritas.sot.data.sot', 'config.yaml') as f:
             self._sot_config = yaml.safe_load(f.read())
 
         self._sot_config['nautobot_url'] = properties.get('url')

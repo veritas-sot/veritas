@@ -7,7 +7,7 @@ import sys
 from loguru import logger
 from openpyxl import load_workbook
 from loguru import logger
-from veritas.messagebus import messagebus
+from ..messagebus import messagebus
 
 
 def get_miniapp_config(appname, app_path, config_file=None):
@@ -218,7 +218,7 @@ def get_prefix_path(prefixe, ip):
     try:
         prefix = pyt.get(ip)
     except Exception as exc:
-        logger.error(f'prefix not found; using 0.0.0.0/0')
+        logger.info(f'prefix not found; using 0.0.0.0/0')
         prefix = "0.0.0.0/0"
     prefix_path.append(prefix)
 

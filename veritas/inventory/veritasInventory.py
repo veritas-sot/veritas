@@ -1,6 +1,6 @@
 from loguru import logger
 from typing import Any, Dict, Type
-from veritas.sot import sot
+from ..sot import sot
 from nornir.core.inventory import (
     Inventory,
     Group,

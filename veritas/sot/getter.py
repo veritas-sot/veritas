@@ -3,7 +3,7 @@ import json
 import itertools
 from loguru import logger
 from pynautobot import api
-from veritas.tools import tools
+from ..tools import tools
 
 
 class Getter(object):
