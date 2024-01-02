@@ -138,6 +138,7 @@ class Getter(object):
         self._nautobot = self._sot.open_nautobot()
 
         subqueries = {'__interfaces_params__': [],
+                      '__interface_assignments_params__': [],
                       '__primaryip4for_params__': [],
                       '__devices_params__': [],
                       '__prefixes_params__': [],
@@ -166,10 +167,16 @@ class Getter(object):
             # devices within a specific prefix range that belong to a specific platform
             # primary_ip4_for(__primaryip4for_params__) is used to query for the platform
             #
+            # the syntax to use the subqueries is:
+            # devices = sot.select('id, hostname, primary_ip4_for') \
+            #              .using('nb.ipaddresses') \
+            #              .where('prefix="192.168.0.0/24" and pip4for_cf_net=eins')
             if whr.startswith('interfaces_'):
                 subqueries['__interfaces_params__'].append(f'{whr.replace("interfaces_","")}: ${whr}')
             elif whr.startswith('pip4for_'):
                 subqueries['__primaryip4for_params__'].append(f'{whr.replace("pip4for_","")}: ${whr}')
+            elif whr.startswith('assignments_'):
+                subqueries['__interface_assignments_params__'].append(f'{whr.replace("assignments_","")}: ${whr}')
             else:
                 sq = f'__{using.replace("nb.","")}_params__'
                 subqueries[sq].append(f'{whr}: ${whr}')
@@ -246,7 +253,7 @@ class Getter(object):
         if not response:
             logger.error(f'got no valid response')
             return {}
-        # logger.debug(response)
+        logger.debug(response)
         if 'errors' in response:
             logger.error(f'got error: {response.get("errors")}')
             response = {}
@@ -271,6 +278,7 @@ class Getter(object):
         query_final_vars = []
 
         subqueries = {'__interfaces_params__': [],
+                      '__interfaces_assignments_params__': [],
                       '__primaryip4for_params__': [],
                       '__devices_params__': [],
                       '__prefixes_params__': [],
@@ -352,7 +360,7 @@ class Getter(object):
             cf_name = whr.replace('pip4for_','').replace('interfaces_','')
             if cf_name.startswith('cf_'):
                 if not cf_fields_types:
-                    cf_fields_types = self.get.custom_fields_type()
+                    cf_fields_types = self.custom_fields_type()
 
                 # set default value to String
                 cf_type = "String"
@@ -366,9 +374,11 @@ class Getter(object):
                 else:
                     response.append(f'${prefix}{whr}: [String]')
             else:
-                if whr in ['within_include', 'changed_object_type', 'prefix']:
+                # we have to check within_include... is it String or [String]
+                # we have to check if prefix is String or [String]
+                if whr in ['changed_object_type']:
                     response.append(f'${prefix}{whr}: String')
-                elif whr in ['vid']:
+                elif whr in ['vid', '']:
                     response.append(f'${prefix}{whr}: [Int]')
                 else:
                     response.append(f'${prefix}{whr}: [String]')

@@ -383,7 +383,8 @@ queries:
       $get_dns_name: Boolean = false,
       $get_hostname: Boolean = true, 
       $get_id: Boolean = false, 
-      $get_interfaces: Boolean = false, 
+      $get_interfaces: Boolean = false,
+      $get_interface_assignments: Boolean = false,
       $get_location: Boolean = false, 
       $get_name: Boolean = false, 
       $get_parent: Boolean = false,
@@ -396,18 +397,22 @@ queries:
       $get_tenant: Boolean = false,
       $get_type: Boolean = false,
       __query_vars__
-    ) {
-      ip_addresses(__ipaddresses_params__) {
+    ) 
+    {
+      ip_addresses(__ipaddresses_params__) 
+      {
         id @include(if: $get_id)
         address @include(if: $get_address)
         description @include(if: $get_description)
         dns_name @include(if: $get_dns_name)
         type @include(if: $get_type)
-        tags @include(if: $get_tags) {
+        tags @include(if: $get_tags) 
+        {
           id
           name
         }
-        parent @include(if: $get_parent) {
+        parent @include(if: $get_parent) 
+        {
           id
           network
           prefix
@@ -418,58 +423,95 @@ queries:
           }
         }
         # show ALL interfaces the IP address is assigned on
-        interfaces (__interfaces_params__) @include(if: $get_interfaces) {
-            id
+        interfaces (__interfaces_params__) @include(if: $get_interfaces) 
+        {
+          id @include(if: $get_id)
+          name
+          device {
+            id @include(if: $get_id)
             name
-            device {
+          }
+          description
+          enabled
+          mac_address
+          type
+          mode
+          ip_addresses {
+            address
+            role {
+              id @include(if: $get_id)
               name
             }
-            description
-            enabled
-            mac_address
-            type
-            mode
-            ip_addresses {
-              address
-              role {
-                id
-              }
-              tags {
-                name
-                content_types {
-                  id
-                  app_label
-                  model
-                }
+            tags {
+              name
+              content_types {
+                id @include(if: $get_id)
+                app_label
+                model
               }
             }
+          }
         }
+
+        # interface assignments
+        interface_assignments (__interface_assignments_params__) @include(if: $get_interface_assignments) 
+        {
+          id @include(if: $get_id)
+          is_standby
+          is_default
+          is_destination
+          interface {
+            id @include(if: $get_id)
+            name
+            description
+            type
+            status {
+              id @include(if: $get_id)
+              name
+            }
+            device {
+              id @include(if: $get_id)
+              name
+            }
+            child_interfaces {
+              id @include(if: $get_id)
+              name
+            }
+          }
+        }
+
         # now ALL data for the primary IP device
         primary_ip4_for(__primaryip4for_params__) @include(if: $get_primary_ip4_for) {
           id @include(if: $get_id)
           name @include(if: $get_name)
           hostname: name @include(if: $get_hostname)
           role @include(if: $get_role) {
+            id @include(if: $get_id)
             name
           }
           device_type @include(if: $get_device_type) {
+            id @include(if: $get_id)
             model
           }
           platform @include(if: $get_platform) {
+            id @include(if: $get_id)
             name
             manufacturer {
+              id @include(if: $get_id)
               name
             }
           }
           tags @include(if: $get_tags) {
+            id @include(if: $get_id)
             name
             content_types {
-              id
+              id @include(if: $get_id)
               app_label
               model
             }
           }
           tenant @include(if: $get_tenant) {
+            id @include(if: $get_id)
             name
             tenant_group {
               name
@@ -477,12 +519,13 @@ queries:
           }
           serial @include(if: $get_serial)
           status @include(if: $get_status) {
+            id @include(if: $get_id)
             name
           }
           config_context @include(if: $get_config_context)
           _custom_field_data @include(if: $get_cf)
           interfaces (__interfaces_params__) @include(if: $get_interfaces) {
-            id
+            id @include(if: $get_id)
             name
             device {
               name
@@ -495,9 +538,11 @@ queries:
             ip_addresses {
               address
               role {
-                id
+                id @include(if: $get_id)
+                name
               }
               tags {
+                id @include(if: $get_id)
                 name
                 content_types {
                   id
