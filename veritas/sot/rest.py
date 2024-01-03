@@ -1,49 +1,25 @@
 import json
 import requests
 import pprint
+from ..tools import tools
 from loguru import logger
+
 
 class Rest(object):
 
     def __init__(self, sot, *named, **unnamed):
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         self._sot = sot
         self._authentication = properties.get('authentication','bearer')
         self._username = properties.get('username')
         self._password = properties.get('password')
         self._api_url = properties.get('url')
         self._token = properties.get('token')
+        self._verify_ssl = properties.get('verify_ssl', True)
         self._session = None
         self._headers = None
 
         logger.debug(f'url: {self._api_url} token: {self._token} user: {self._username}')
-
-    def __convert_arguments_to_properties(self, *unnamed, **named):
-        """ converts unnamed (dict) and named arguments to a single property dict """
-        properties = {}
-        if len(unnamed) > 0:
-            for param in unnamed:
-                if isinstance(param, dict):
-                    for key,value in param.items():
-                        properties[key] = value
-                elif isinstance(param, str):
-                    # it is just a text like log('something to log')
-                    return param
-                elif isinstance(param, tuple):
-                    for tup in param:
-                        if isinstance(tup, dict):
-                            for key,value in tup.items():
-                                properties[key] = value
-                        if isinstance(tup, str):
-                            return tup
-                elif isinstance(param, list):
-                    return param
-                else:
-                    logger.error(f'cannot use paramater {param} / {type(param)} as value')
-        for key,value in named.items():
-                properties[key] = value
-        
-        return properties
 
     def session(self):
         logger.debug(f'starting session for {self._username} on {self._api_url}')
@@ -64,7 +40,7 @@ class Rest(object):
             logger.debug(f'active session detected; please close session before starting new one')
 
     def set_headers(self, *unnamed, **named):
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         if self._headers is None:
             self._headers = {}
         for key, value in properties.items():
@@ -73,10 +49,11 @@ class Rest(object):
 
     def get(self, *unnamed, **named):
         logger.debug(f'sending GET request to {self._api_url}')
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
 
         # modify URL
         properties['url'] = "%s/%s" % (self._api_url, properties['url'])
+        properties['verify'] = self._verify_ssl
         # check if format is present
         format = properties.get('format')
         if format is not None:
@@ -98,9 +75,10 @@ class Rest(object):
 
     def post(self, *unnamed, **named):
         logger.debug(f'sending POST request to {self._api_url}')
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
         # modify URL
         properties['url'] = "%s/%s" % (self._api_url, properties['url'])
+        properties['verify'] = self._verify_ssl
 
         # add default headers if no header was passed
         if self._headers and not 'headers' in properties:
@@ -109,10 +87,11 @@ class Rest(object):
 
     def put(self, *unnamed, **named):
         logger.debug(f'sending PUT request to {self._api_url}')
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
 
         # modify URL
         properties['url'] = "%s/%s" % (self._api_url, properties['url'])
+        properties['verify'] = self._verify_ssl
         # add headers to properties
         if self._headers is not None:
             if 'headers' in properties:
@@ -124,10 +103,11 @@ class Rest(object):
 
     def patch(self, *unnamed, **named):
         logger.debug(f'sending PATCH request to {self._api_url}')
-        properties = self.__convert_arguments_to_properties(unnamed, named)
+        properties = tools.convert_arguments_to_properties(unnamed, named)
 
         # modify URL
         properties['url'] = "%s/%s" % (self._api_url, properties['url'])
+        properties['verify'] = self._verify_ssl
         # add headers to properties
         if self._headers is not None:
             if 'headers' in properties:
