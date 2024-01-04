@@ -19,7 +19,7 @@ class Getter(object):
         return self._nautobot
 
     def device(self, name, by_id=False):
-        """return device by using its name"""
+        """return device by using its name or id"""
         # name can be either the name (in most cases) or the id
 
         if by_id:
@@ -58,6 +58,15 @@ class Getter(object):
             return device.primary_ip6.display
         else:
             return device.primary_ip6
+
+    def address(self, address, by_id=False):
+        """return address by using its address or id"""
+        # name can be either the name (in most cases) or the id
+
+        if by_id:
+            return self._nautobot.ipam.ip_addresses.get(id=address)
+        else:
+            return self._nautobot.ipam.ip_addresses.get(address=address)
 
     def interface(self, *unnamed, **named):
         """returns interface of device"""

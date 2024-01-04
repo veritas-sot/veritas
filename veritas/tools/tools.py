@@ -118,6 +118,37 @@ def get_value_from_dict(dictionary, keys):
 
     return nested_dict
 
+def get_value_from_dict_and_list(dictionary, keys):
+    if dictionary is None:
+        return None
+
+    nested_dict = dictionary
+
+    for key in keys:
+        try:
+            nested_dict = nested_dict[key]
+        except KeyError as e:
+            return None
+        except IndexError as e:
+            return None
+        except TypeError as e:
+            # check if it is a list
+            if isinstance(nested_dict, list):
+                values = []
+                remaining_keys = []
+                found = False
+                for i in keys:
+                    if i == key:
+                        found = True
+                    if found:
+                        remaining_keys.append(i)
+                for i in nested_dict:
+                    d = get_value_from_dict(i, remaining_keys)
+                    values.append(d)
+            return values
+
+    return nested_dict
+
 def convert_arguments_to_properties(*unnamed, **named):
     """ convert unnamed (dict) and named arguments to a single property dict """
     properties = {}
