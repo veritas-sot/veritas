@@ -15,11 +15,12 @@ from git.objects import Commit as GitCommit
 
 class Repository:
 
-    def __init__(self, path: str, repo: str):
+    def __init__(self, path: str, repo: str, ssh_cmd=None):
             self.path = Path(path).expanduser().resolve()
             self._repo_name = repo
+            self._ssh_cmd = ssh_cmd
             # Initialize repository
-            logger.debug(f'opening REPO {path} / {self.path} / ssh {self._ssh_cmd}')
+            logger.debug(f'opening REPO {path} / path={self.path} / ssh={self._ssh_cmd}')
             self._open_repository()
 
     def __getattr__(self, item):
