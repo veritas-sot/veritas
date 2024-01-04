@@ -276,6 +276,7 @@ queries:
         location @include(if: $get_location) {
           id
           name
+          description
         }
         status @include(if: $get_status) {
           id
