@@ -252,7 +252,9 @@ class Getter(object):
         #     print(subqueries[q])
         # # print('--- query ---')
         # # print(query)
-        # print('--- variables ---')
+        # print('--- select ---')
+        # print(select)
+        # print('--- where ---')
         # print(where)
 
         response = None
@@ -262,7 +264,7 @@ class Getter(object):
         if not response:
             logger.error(f'got no valid response')
             return {}
-        logger.debug(response)
+        # logger.debug(response)
         if 'errors' in response:
             logger.error(f'got error: {response.get("errors")}')
             response = {}

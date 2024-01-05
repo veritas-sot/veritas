@@ -33,7 +33,7 @@ class Ipam(object):
         address = properties.get('address')
         # if there is a / use address only
         address = address.split('/')[0]
-        namepace = properties.get('namespace','Global')
+        namespace = properties.get('namespace','Global')
         logger.debug(f'getting IP {address} namespace {namespace}')
         return self._nautobot.ipam.ip_addresses.get(address=address,
                                                     namespace=namespace)
