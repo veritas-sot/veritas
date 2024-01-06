@@ -1,18 +1,29 @@
 # veritas nautobot toolkit library
 
-# Übersicht <a name="introduction"></a>
-
 # Table of contents
 1. [Übersicht](#*introduction*)
 2. [Installation](#installation)
     1. [Python Environment](#install_python_env)
     2. [Installation der Library](#install_python_lib)
-3. [Beispiele](#examples)
+3. [sot](#sot)
+4. [tools](#tools)
+5. [devicemanagement](#devicemanagement)
+6. [inventory](#inventory)
+7. [journal](#journal)
+8. [checkmk](#checkmk)
+9. [Beispiele](#examples)
+    1. [sot](#examples_sot)
+        - [Grundlegendes](#examples_basic)
+        - [Devices](#examples_sot_all_devices)
+        - [Roles und platforms](#examples_sot_roles_platforms)
+        - [Interfaces](#examples_locations)
+    2. [tools](#examples_tools)
 
+# Übersicht <a name="introduction"></a>
 
 Die Library soll einem das 'Leben' mit nautobot einfacher machen, indem es einige grundlegende Funktionen zur Verfügung stellt. Dabei wird weitestgehend ein Fluent-Syntax genutzt, um es 'Netzwerkern' einafacher zu machen, bestimmte Daten abzufragen oder Geräte nautobot hinzuzufügen. 
 
-Möchte man beispielsweise eine Liste aller Geräte haben, die zu einer bestimmten Location gehören, so kann dies einfach mit
+Möchte man beispielsweise eine Liste aller Geräte haben, die zu einer bestimmten Location gehören, so kann diese Liste mit
 
 ```
 liste = my_sot.select('id, hostname') \
@@ -20,7 +31,7 @@ liste = my_sot.select('id, hostname') \
               .where('location=meine_location')
 ```
 
-realisiert werden. Auch 'boolische' Ausdrücke sind möglich:
+erstellt werden. Auch 'boolische' Ausdrücke sind möglich:
 
 ```
 liste = my_sot.select('id, hostname') \
@@ -67,11 +78,36 @@ poetry install
 
 wird die Library installiert und kann anschließend genutzt werden.
 
+# sot <a name="sot"></a>
+
+Die sot-Klasse bietet grundlegende Funktionen um nautobot anzusprechen. Dies beinhaltet:
+
+* select
+* get
+* onboarding
+* device
+* ipam
+* rest
+* auth
+* importer
+* update
+
+
+# tools <a name="tools"></a>
+
+# devicemanagement <a name="devicemanagement"></a>
+
+# inventory <a name="inventory"></a>
+
+# journal <a name="journal"></a>
+
+# checkmk <a name="checkmk"></a>
 
 # Beispiele <a name="examples"></a>
 
+## sot <a name="examples_sot"></a>
 
-## Grundlegendes
+### Grundlegendes <a name="examples_basics"></a>
 
 Mit 
 
@@ -114,9 +150,40 @@ Dies ergibt beispielsweise die Ausgabe
 ]
 ```
 
-## Weitere Beispiele
+### Alle Devices <a name="examples_sot_all_devices"></a>
 
-### Abfragen von Locations
+Um alle Devices von nautobot zu erhalten
+
+```
+devices = my_sot.select('hostname', 'primary_ip4') \
+                .using('nb.devices') \
+                .where()
+print(json.dumps(devices, indent=4))
+```
+
+```
+[
+    {
+        "hostname": "lab.local",
+        "primary_ip4": {
+            "id": "dbbdb143-2b61-4ef9-a50a-812e1b113894",
+            "ip_version": 4,
+            "address": "192.168.0.1/24",
+            "description": "lab.local GigabitEthernet0/2",
+            "mask_length": 24,
+            "dns_name": "",
+            "interfaces": [
+                {
+                    "id": "7f93212f-ff2c-4034-96f4-522f66d1b3b5",
+                    "name": "GigabitEthernet0/2"
+                }
+            ]
+        }
+    }
+]
+```
+
+### Abfragen von Locations <a name="examples_sot_locations"></a>
 
 ```
 # get all hosts of a location
@@ -136,8 +203,66 @@ Ergebnis:
 ]
 ```
 
+### Abfragen von Roles <a name="examples_sot_roles_platforms"></a>
 
-### Abfragen von Interfaces
+```
+# get all hosts with a specific role
+devices = my_sot.select('hostname') \
+                .using('nb.devices') \
+                .where('role=default-role')
+print(json.dumps(devices, indent=4))
+```
+
+### Custom Fields <a name="examples_sot_custom_fields"></a>
+
+```
+# get hosts with cf_net=testnet
+devices = my_sot.select('hostname, cf_net') \
+                .using('nb.devices') \
+                .where('cf_net=testnet')
+print(json.dumps(devices, indent=4))
+```
+
+Ergbenis:
+
+```
+[
+    {
+        "hostname": "lab.local",
+        "custom_field_data": {
+            "net": "testnet"
+        }
+    }
+]
+```
+
+Mehrere Custom Fields
+
+```
+devices = my_sot.select('hostname') \
+                .using('nb.devices') \
+                .where('cf_net=testnet or cf_field=value')
+print(json.dumps(devices, indent=4))
+```
+
+Ergebnis:
+
+```
+[
+    {
+        "id": "5e6fa080-7636-4aec-99ad-7aa4d09cf34a",
+        "hostname": "switch.local"
+    },
+    {
+        "id": "e7ac5c82-7e8b-4363-8c1b-81a20e8561b1",
+        "hostname": "lab.local"
+    }
+]
+```
+
+
+
+### Abfragen von Interfaces  <a name="examples_interfaces"></a>
 
 ```
 # get id, hostname and interface (named GigabitEthernet0/0) of all hosts
@@ -178,5 +303,7 @@ Ergebnis:
             }
         ]
     }
-]```
+]
+```
 
+## tools <a name="examples_tools"></a>
