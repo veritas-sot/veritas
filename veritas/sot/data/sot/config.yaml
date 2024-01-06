@@ -54,134 +54,172 @@ queries:
         prefix @include(if: $get_prefix)
         prefix_length @include(if: $get_prefix_length)
         parent @include(if: $get_parent) {
+          id @include(if: $get_id)
           prefix
         }
         namespace @include(if: $get_namespace) {
-          id
+          id @include(if: $get_id)
           name
         }
         description @include(if: $get_description)
         type @include(if: $get_type)
         location @include(if: $get_location) {
+          id @include(if: $get_id)
           name
         }
         _custom_field_data @include(if: $get_cf)
         _custom_field_data @include(if: $get__custom_field_data)
         custom_field_data : _custom_field_data @include(if: $get_custom_field_data)
-        ip_addresses @include(if: $get_ip_addresses) {
+        ip_addresses @include(if: $get_ip_addresses) 
+        {
+          id @include(if: $get_id)
           address
-          primary_ip4_for(__primaryip4for_params__) @include(if: $get_primary_ip4_for) {
+          primary_ip4_for(__primaryip4for_params__) @include(if: $get_primary_ip4_for) 
+          {
             id @include(if: $get_id)
-          name @include(if: $get_name)
-          hostname: name @include(if: $get_hostname)
-          role @include(if: $get_role) {
-            id
-            name
-          }
-          device_type @include(if: $get_device_type) {
-            id
-            model
-          }
-          platform @include(if: $get_platform) {
-            name
-            manufacturer {
-              id
+            name @include(if: $get_name)
+            hostname: name @include(if: $get_hostname)
+            role @include(if: $get_role) 
+            {
+              id @include(if: $get_id)
               name
             }
-          }
-          tags @include(if: $get_tags) {
-            name
-            content_types {
-              id
-              app_label
+            device_type @include(if: $get_device_type) 
+            {
+              id @include(if: $get_id)
               model
             }
-          }
-          tenant @include(if: $get_tenant) {
-            name
-            tenant_group {
-              id
+            platform @include(if: $get_platform) 
+            {
               name
-            }
-          }
-          serial @include(if: $get_serial)
-          status @include(if: $get_status) {
-            id
-            name
-          }
-          config_context @include(if: $get_config_context)
-          _custom_field_data @include(if: $get_cf)
-          interfaces @include(if: $get_interfaces) {
-            id
-            name
-            device {
-              name
-            }
-            description
-            enabled
-            mac_address
-            type
-            mode
-            ip_addresses {
-              address
-              role {
-                id
-              }
-              tags {
-                name
-                content_types {
-                  id
-                  app_label
-                  model
-                }
-              }
-            }
-            connected_circuit_termination {
-              circuit {
-                cid
-                commit_rate
-                provider {
-                  name
-                }
-              }
-            }
-            tagged_vlans {
-              name
-              vid
-            }
-            untagged_vlan {
-              name
-              vid
-            }
-            cable {
-              termination_a_type
-              status {
+              manufacturer {
+                id @include(if: $get_id)
                 name
               }
-              color
             }
-            tags {
+            tags @include(if: $get_tags) 
+            {
               name
               content_types {
-                id
+                id @include(if: $get_id)
                 app_label
                 model
               }
             }
-            lag {
+            tenant @include(if: $get_tenant) 
+            {
               name
+              tenant_group 
+              {
+                id @include(if: $get_id)
+                name
+              }
+            }
+            serial @include(if: $get_serial)
+            status @include(if: $get_status) 
+            {
+              id @include(if: $get_id)
+              name
+            }
+            config_context @include(if: $get_config_context)
+            _custom_field_data @include(if: $get_cf)
+            interfaces @include(if: $get_interfaces) 
+            {
+              id @include(if: $get_id)
+              name
+              device 
+              {
+                id @include(if: $get_id)
+                name
+              }
+              description
               enabled
+              mac_address
+              type
+              mode
+              ip_addresses 
+              {
+                address
+                role 
+                {
+                  id @include(if: $get_id)
+                  name
+                }
+                tags 
+                {
+                  name
+                  content_types 
+                  {
+                    id @include(if: $get_id)
+                    app_label
+                    model
+                  }
+                }
+              }
+              connected_circuit_termination 
+              {
+                circuit 
+                {
+                  id @include(if: $get_id)
+                  commit_rate
+                  provider 
+                  {
+                    id @include(if: $get_id)
+                    name
+                  }
+                }
+              }
+              tagged_vlans 
+              {
+                id @include(if: $get_id)
+                name
+                vid
+              }
+              untagged_vlan 
+              {
+                id @include(if: $get_id)
+                name
+                vid
+              }
+              cable 
+              {
+                termination_a_type
+                status {
+                  name
+                }
+                color
+              }
+              tags 
+              {
+                name
+                content_types 
+                {
+                  id @include(if: $get_id)
+                  app_label
+                  model
+                }
+              }
+              lag 
+              {
+                id @include(if: $get_id)
+                name
+                enabled
+              }
+              member_interfaces 
+              {
+                id @include(if: $get_id)
+                name
+              }
             }
-            member_interfaces {
+            location @include(if: $get_location) 
+            {
+              id @include(if: $get_id)
               name
             }
-          }
-          location @include(if: $get_location) {
-            name
-          }
           }
         }
-        tags @include(if: $get_tags) {
+        tags @include(if: $get_tags) 
+        {
           name
           content_types {
             id
@@ -189,11 +227,15 @@ queries:
             model
           }
         }
-        tenant @include(if: $get_tenant) {
+        tenant @include(if: $get_tenant) 
+        {
+          id @include(if: $get_id)
+          name
+          tenant_group 
+          {
+            id @include(if: $get_id)
             name
-            tenant_group {
-              name
-            }
+          }
         }
       }
     }
@@ -379,6 +421,8 @@ queries:
       $get_address: Boolean = false,
       $get_config_context: Boolean = false, 
       $get_cf: Boolean = false,
+      $get_custom_field_data: Boolean = false,
+      $get__custom_field_data: Boolean = false,
       $get_description: Boolean = false,
       $get_device_type: Boolean = false, 
       $get_dns_name: Boolean = false,
@@ -525,6 +569,8 @@ queries:
           }
           config_context @include(if: $get_config_context)
           _custom_field_data @include(if: $get_cf)
+          _custom_field_data @include(if: $get__custom_field_data)
+          custom_field_data : _custom_field_data @include(if: $get_custom_field_data)
           interfaces (__interfaces_params__) @include(if: $get_interfaces) {
             id @include(if: $get_id)
             name
