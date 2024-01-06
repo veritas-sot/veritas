@@ -1,11 +1,4 @@
-# Veritas SOT library
-veritas Library for our miniApps
+# veritas nautobot toolkit library
 
-### INSTALL
-
-To install the library:
-
-pip3 install -e .
-
-### USE
+You can fnd the germany version of this README here [LIESMICH](https://github.com/veritas-sot/veritas/blob/main/LIESMICH.md).
 
