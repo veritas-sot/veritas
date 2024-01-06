@@ -17,6 +17,8 @@
         - [Devices](#examples_sot_all_devices)
         - [Roles und platforms](#examples_sot_roles_platforms)
         - [Interfaces](#examples_locations)
+        - [Prefixes](#examples_prefixes)
+        - [IP-Adressen](#examples_adresses)
     2. [tools](#examples_tools)
 
 # Übersicht <a name="introduction"></a>
@@ -236,7 +238,7 @@ Ergbenis:
 ]
 ```
 
-Mehrere Custom Fields
+Mehrere Custom Fields mit einer logischen ODER-Verknüfung
 
 ```
 devices = my_sot.select('hostname') \
@@ -259,8 +261,6 @@ Ergebnis:
     }
 ]
 ```
-
-
 
 ### Abfragen von Interfaces  <a name="examples_interfaces"></a>
 
@@ -306,4 +306,149 @@ Ergebnis:
 ]
 ```
 
+### Abfragen von Prefixen  <a name="examples_prefixes"></a>
+
+```
+# get prefixes, prefix_length and namespace within a prefix
+prefixes = my_sot.select('prefix, prefix_length, namespace') \
+                 .using('nb.prefixes') \
+                 .where('within_include=192.168.0.0/23')
+print(json.dumps(prefixes, indent=4))
+```
+
+Ergebnis:
+
+```
+[
+    {
+        "prefix": "192.168.0.0/24",
+        "prefix_length": 24,
+        "namespace": {
+            "name": "Global"
+        }
+    },
+    {
+        "prefix": "192.168.1.0/24",
+        "prefix_length": 24,
+        "namespace": {
+            "name": "Private"
+        }
+    }
+]
+```
+
+
+```
+# get all prefixes within a specififc range and namespace
+prefixes = my_sot.select('prefix, prefix_langth, namespace') \
+                 .using('nb.prefixes') \
+                 .where('within_include="192.168.0.0/23" and namespace=Global')
+print(json.dumps(prefixes, indent=4))
+```
+
+Ergebnis:
+
+```
+[
+    {
+        "id": "f5f565a6-41c1-4b65-9be1-e59622babe26",
+        "prefix": "192.168.0.0/24",
+        "namespace": {
+            "id": "d07521f8-3f55-4cba-9bf8-34e2dde472bb",
+            "name": "Global"
+        }
+    }
+]
+```
+
+### Abfragen von IP-Adressen  <a name="examples_adresses"></a>
+
+```
+devices = my_sot.select('hostname, address, primary_ip4_for') \
+                .using('nb.ipaddresses') \
+                .where('address=192.168.0.1')
+print(json.dumps(devices, indent=4))
+```
+
+Ergebnis:
+
+```
+[
+    {
+        "address": "192.168.0.1/24",
+        "primary_ip4_for": [
+            {
+                "name": "lab.local",
+                "hostname": "lab.local"
+            }
+        ]
+    }
+]
+```
+
+Oder die Daten mit CIDR-Notation
+
+```
+# get id, hostname, and primary_ip of the host with IP=192.168.0.0/23
+devices = my_sot.select('hostname, address, primary_ip4_for') \
+                .using('nb.ipaddresses') \
+                .where('prefix=192.168.0.0/23')
+print(json.dumps(devices, indent=4))
+```
+
+Ergebnis:
+
+```
+[
+    {
+        "address": "192.168.0.1/24",
+        "primary_ip4_for": [
+            {
+                "hostname": "lab.local"
+            }
+        ]
+    },
+    {
+        "address": "192.168.1.1/24",
+        "primary_ip4_for": [
+            {
+                "hostname": "switch.local"
+            }
+        ]
+    }
+]
+```
+
+Host mit einer bestimmten IP-Adresse und einem custom field:
+
+```
+# get hostname and primary_ip4 of hosts having an IP address in 192.168.0.0/23 and custom field net=testnet
+devices = my_sot.select('hostname, primary_ip4_for, cf_net') \
+                .using('nb.ipaddresses') \
+                .where('prefix="192.168.0.0/23" and pip4for_cf_net=testnet')
+print(json.dumps(devices, indent=4))
+```
+
+Ergebnis:
+
+```
+[
+    {
+        "id": "dbbdb143-2b61-4ef9-a50a-812e1b113894",
+        "primary_ip4_for": [
+            {
+                "id": "e7ac5c82-7e8b-4363-8c1b-81a20e8561b1",
+                "hostname": "lab.local",
+                "custom_field_data": {
+                    "net": "testnet"
+                }
+            }
+        ]
+    },
+    {
+        "id": "159bed0c-e089-4969-b511-c4e3ac410241",
+        "primary_ip4_for": []
+    }
+]
+```
 ## tools <a name="examples_tools"></a>
