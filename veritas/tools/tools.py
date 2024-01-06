@@ -13,9 +13,9 @@ from ..messagebus import messagebus
 def get_miniapp_config(appname, app_path, config_file=None):
     """return config of miniapp
     
-    1. prio: config in local directory
-    2. prio: config in local ./conf/ directory
-    3. prio: config in homedirectory ~/.veritas
+    1. prio: config in home directory ~/.veritas
+    2. prio: config in local directory
+    3. prio: config in local ./conf/ directory
     4. prio: config in /etc/veritas/
     """
 
@@ -25,12 +25,12 @@ def get_miniapp_config(appname, app_path, config_file=None):
     homedir_config_file = f'{os.path.expanduser("~")}/.veritas/miniapps/{appname}/{config_filename}'
     etc_config_file = f'/etc/veritas/miniapps/{appname}/{config_filename}'
 
-    if os.path.exists(local_config_file):
+    if os.path.exists(homedir_config_file):
+        filename = homedir_config_file
+    elif os.path.exists(local_config_file):
         filename = local_config_file
     elif os.path.exists(local_subdir_config_file):
         filename = local_subdir_config_file
-    elif os.path.exists(homedir_config_file):
-        filename = homedir_config_file
     elif os.path.exists(etc_config_file):
         filename = etc_config_file
     else:
