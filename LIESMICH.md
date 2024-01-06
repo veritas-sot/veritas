@@ -64,17 +64,43 @@ wird die Library installiert und kann anschließend genutzt werden.
 
 1. Grundlegendes
 
+Mit 
+
+```
+from veritas.sot import sot as sot
+```
+
+wird dei sot-Klasse der Library importiert. Um mit nautobot Daten auszutauschen, wird ein Objekt erstellt.
+
+
 ```
 from veritas.sot import sot as sot
 
 my_sot = sot.Sot(token="my_secret_token", 
                  url="http://url_to_nautobot:port",
                  api_version="2.0")
+```
 
-# get id and hostname of a host
-devices = my_sot.select('id, hostname, interfaces') \
+Anschließend kann dieses Objekt genutzt werden, um Abfragen zu stellen.
+
+```
+# get id and hostname of hosts where name includes local
+devices = my_sot.select('id, hostname, custom_field_data') \
                 .using('nb.devices') \
-                .where('interfaces_name=GigabitEthernet0/0')
+                .where('name__ic=local')
 print(json.dumps(devices, indent=4))
 ```
 
+Dies ergibt die Ausgabe
+
+```
+[
+    {
+        "id": "e7ac5c82-7e8b-4363-8c1b-81a20e8561b1",
+        "hostname": "lab.local",
+        "custom_field_data": {
+            "net": "testnet"
+        }
+    }
+]
+```
