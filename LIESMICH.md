@@ -43,7 +43,9 @@ Es ist am einfachsten, ein lokales Python-Environment zu nutzen. So kann man zum
 
 Mit
 
+```
 conda create --name veritas python=3.11
+```
 
 wird ein neues Environment mit dem Namen 'veritas' und der Python Version 3.11 angelegt.
 
@@ -51,12 +53,28 @@ wird ein neues Environment mit dem Namen 'veritas' und der Python Version 3.11 a
 
 Mit 
 
+```
 poetry install
+```
 
 wird die Library installiert und kann anschließend genutzt werden.
 
 
 # Beispiele
 
+1. Grundlegendes
 
+```
+from veritas.sot import sot as sot
+
+my_sot = sot.Sot(token="my_secret_token", 
+                 url="http://url_to_nautobot:port",
+                 api_version="2.0")
+
+# get id and hostname of a host
+devices = my_sot.select('id, hostname, interfaces') \
+                .using('nb.devices') \
+                .where('interfaces_name=GigabitEthernet0/0')
+print(json.dumps(devices, indent=4))
+```
 
