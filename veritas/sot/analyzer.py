@@ -25,11 +25,10 @@ class Analyzer(object):
         self._analyzer_config = {}
 
         self._sot_config = sot.get_config()
-        filename = "%s/%s" % (
-            os.path.abspath(os.path.dirname(__file__)),
-            self._sot_config['analyzer'].get('config') 
-        )
-        with open(filename) as f:
+
+        logger.debug(f'reading ANALYZER config')
+        package = f'{__name__.split(".")[0]}.sot.data.analyzer'
+        with resources.open_text(package, 'analyzer.yaml') as f:
             self._analyzer_config = yaml.safe_load(f.read())
 
         # how to connect to batfish

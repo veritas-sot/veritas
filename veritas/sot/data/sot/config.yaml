@@ -703,30 +703,3 @@ queries:
       }
     }
 
-analyzer:
-  config: ../conf/sot/analyzer/analyzer.yaml
-
-configparser:
-  config: ../conf/sot/configparser/configparser.yaml
-  
-journal:
-  config: ../conf/journal/config.yaml
-
-devicemanagement:
-  config: ../conf/devicemanagement/
-
-templates:
-    directory: "../../../veritasData/templates/"
-    trim_blocks: True
-
-inventory:
-    backup_configs: "../../../veritasData/config_backups"
-
-webhooks:
-    dcim.device:
-        create:
-            routing_key: device.create
-        update:
-            routing_key: device.update
-        delete:
-            routing_key: device.delete

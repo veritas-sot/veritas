@@ -125,7 +125,8 @@ class Devicemanagement:
 
     def send_and_parse_command(self, *unnamed, **named):
         properties = tools.convert_arguments_to_properties(*unnamed, **named)
-        directory = importlib.resources.files('veritas.devicemanagement.data.textfsm')
+        package = f'{__name__.split(".")[0]}.devicemanagement.data.textfsm'
+        directory = importlib.resources.files(package)
         logger.debug(f'directory to read textfsm is {directory}')
         result = {}
         mapped = {}
@@ -197,7 +198,8 @@ class Devicemanagement:
         return result
 
     def get_facts(self):
-        directory = importlib.resources.files('veritas.devicemanagement.data.facts')
+        package = f'{__name__.split(".")[0]}.devicemanagement.data.facts'
+        directory = importlib.resources.files(package)
         logger.debug(f'reading facts config from {directory}')
 
         files = []

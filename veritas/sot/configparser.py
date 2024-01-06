@@ -25,7 +25,8 @@ class Configparser(object):
         self._naming = {}
 
         logger.debug(f'reading configparser config')
-        with importlib.resources.open_text('veritas.sot.data.configparser', 'config.yaml') as f:
+        package = f'{__name__.split(".")[0]}.sot.data.configparser'
+        with importlib.resources.open_text(package, 'config.yaml') as f:
             self._my_config = yaml.safe_load(f.read())
 
         if not self.parse(*unnamed, **named):
@@ -295,7 +296,8 @@ class Configparser(object):
             logger.error(f'please configure correct template filename for {platform}')
             return None
 
-        file = importlib.resources.files('veritas.sot.data.configparser.templates').joinpath(filename)
+        package = f'{__name__.split(".")[0]}.sot.data.configparser.templates'
+        file = importlib.resources.files(package).joinpath(filename)
         try:
             logger.debug(f'reading template {file}')
             with open(file) as f:

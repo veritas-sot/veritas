@@ -1,4 +1,4 @@
 ---
 batfish:
-  snapshot: "/Users/marc/Programming/batfish/snapshot"
+  snapshot: "_path_to_snapshot"
   bf_address: "127.0.0.1"
