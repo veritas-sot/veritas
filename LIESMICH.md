@@ -68,7 +68,13 @@ Mit
 conda create --name veritas python=3.11
 ```
 
-wird ein neues Environment mit dem Namen 'veritas' und der Python Version 3.11 angelegt.
+wird ein neues Environment mit dem Namen 'veritas' und der Python Version 3.11 angelegt. Poetry wird benötigt, um die Library zu installieren. Mit
+
+```
+conda install poetry
+```
+
+kann poetry installiert werden.
 
 ## Installation der Library <a name="install_python_lib"></a>
 
